@@ -1,42 +1,38 @@
-# VPWA_projekt
+# Chat app (vpwa-projekt)
 
-This template should help get you started developing with Vue 3 in Vite.
+## Install the dependencies
 
-## Recommended IDE Setup
-
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
+```bash
+pnpm install
+# or: yarn/npm/bun install
 ```
 
-### Compile and Hot-Reload for Development
+### Start the app in development mode (HMR, error reporting, etc.)
 
-```sh
-npm run dev
+```bash
+quasar dev
 ```
 
-### Type-Check, Compile and Minify for Production
+### Format & Lint the files
 
-```sh
-npm run build
+```bash
+pnpm run lint
+# or: yarn/npm/bun run lint
 ```
+
+...or just check formatting & linting:
+
+```bash
+pnpm run lint:check
+# or: yarn/npm/bun run lint:check
+```
+
+### Build the app for production
+
+```bash
+quasar build
+```
+
+### Customize the configuration
+
+See [Configuring quasar.config.js](https://v2.quasar.dev/quasar-cli-vite/quasar-config-file).
