@@ -1,5 +1,5 @@
 <template>
-  <q-page padding>
+  <q-page padding class="chat-page">
     <div class="text-h6 q-mb-md">
       {{ chat.activeChannel?.name }}
     </div>
