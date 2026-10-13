@@ -39,6 +39,10 @@
       </q-list>
     </q-drawer>
 
+    <q-footer class="bg-grey-2 q-pa-sm">
+      <CommandInput />
+    </q-footer>
+
     <q-page-container>
       <router-view />
     </q-page-container>
@@ -48,6 +52,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import CommandInput from '@/components/CommandInput.vue'
 
 const chat = useChatStore()
 const leftDrawerOpen = ref(false)

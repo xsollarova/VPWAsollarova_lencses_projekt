@@ -5,8 +5,13 @@
     </div>
 
     <div v-for="msg in chat.activeMessages" :key="msg.id" class="q-mb-sm">
-      <b>{{ msg.sender }}</b> <small>{{ msg.time }}</small>
-      <div>{{ msg.text }}</div>
+        <div v-if="msg.sender === 'system'" class="text-grey-7 text-italic">
+            {{ msg.text }}
+        </div>
+        <template v-else>
+            <b>{{ msg.sender }}</b> <small>{{ msg.time }}</small>
+            <div>{{ msg.text }}</div>
+        </template>
     </div>
   </q-page>
 </template>

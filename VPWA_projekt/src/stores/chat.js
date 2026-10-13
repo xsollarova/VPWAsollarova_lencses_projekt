@@ -53,6 +53,41 @@ export const useChatStore = defineStore('chat', () => {
     activeChannelId.value = id
   }
 
+  let nextMessageId = 100
+
+  function now() {
+    return new Date().toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function sendMessage(text) {
+    if (!activeChannel.value) return
+    messages.value.push({
+      id: nextMessageId++,
+      channelId: activeChannelId.value,
+      sender: currentUser.value.nickName,
+      text,
+      time: now(),
+    })
+  }
+
+  // systémová správa - napr. invite
+  function systemMessage(text) {
+    if (!activeChannel.value) return
+    messages.value.push({
+      id: nextMessageId++,
+      channelId: activeChannelId.value,
+      sender: 'system',
+      text,
+      time: now(),
+    })
+  }
+
+  function handleInput(raw) {
+    const text = raw.trim()
+    if (!text) return
+    sendMessage(text)
+  }
+
   return {
     currentUser,
     channels,
@@ -62,5 +97,8 @@ export const useChatStore = defineStore('chat', () => {
     activeChannel,
     activeMessages,
     selectChannel,
+    handleInput,
+    sendMessage,
+    systemMessage,
   }
 })
