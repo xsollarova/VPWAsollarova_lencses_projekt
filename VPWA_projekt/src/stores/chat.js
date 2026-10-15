@@ -9,6 +9,7 @@ export const useChatStore = defineStore('chat', () => {
     lastName: 'Test',
     nickName: 'david',
     email: 'david@test.sk',
+    password: 'David1234',
     status: 'online', // online | dnd | offline
   })
 
@@ -23,10 +24,10 @@ export const useChatStore = defineStore('chat', () => {
   // hard code správy všetkých kanálov v jednom poli
   const messages = ref([
     { id: 1, channelId: 1, sender: 'anna', text: 'Ahoj všetkým!', time: '10:01' },
-    { id: 2, channelId: 1, sender: 'peter', text: 'Čau, @david si tu?', time: '10:02' },
+    { id: 2, channelId: 1, sender: 'peter', text: 'Čau, @david si tu?', time: '10:02', recipient: 'david'},
     { id: 3, channelId: 1, sender: 'david', text: 'Som, čo sa deje?', time: '10:03' },
     { id: 4, channelId: 2, sender: 'anna', text: 'Kedy robíme prototyp?', time: '11:15' },
-    { id: 5, channelId: 3, sender: 'peter', text: 'Pozri toto 😂', time: '12:40' },
+    { id: 5, channelId: 3, sender: 'peter', text: 'Pozri toto ', time: '12:40' },
   ])
 
   const activeChannelId = ref(1)
@@ -58,20 +59,37 @@ export const useChatStore = defineStore('chat', () => {
     listOpen.value = true
   }
 
+  function authenticate(email, password) {
+    return (
+      email.trim().toLowerCase() === currentUser.value.email.toLowerCase() &&
+      password === currentUser.value.password
+    )
+  }
+
   let nextMessageId = 100
 
   function now() {
     return new Date().toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })
   }
 
+  function findRecipient(text) {
+    const mention = text.match(/@([a-zA-Z0-9_]+)/)
+    if (!mention) return undefined
+    return activeChannel.value?.members.find(
+      (member) => member.toLowerCase() === mention[1].toLowerCase(),
+    )
+  }
+
   function sendMessage(text) {
     if (!activeChannel.value) return
+    const recipient = findRecipient(text)
     messages.value.push({
       id: nextMessageId++,
       channelId: activeChannelId.value,
       sender: currentUser.value.nickName,
       text,
       time: now(),
+      ...(recipient ? { recipient } : {}),
     })
   }
 
@@ -108,6 +126,7 @@ export const useChatStore = defineStore('chat', () => {
     activeMessages,
     selectChannel,
     openList,
+    authenticate,
     handleInput,
     sendMessage,
     systemMessage,

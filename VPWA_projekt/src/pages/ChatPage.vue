@@ -4,7 +4,15 @@
       {{ chat.activeChannel?.name }}
     </div>
 
-    <div v-for="msg in chat.activeMessages" :key="msg.id" class="q-mb-sm">
+    <div
+      v-for="msg in chat.activeMessages"
+      :key="msg.id"
+      class="q-mb-sm"
+      :class="{
+        'chat-message--mentioned':
+          msg.recipient?.toLowerCase() === chat.currentUser.nickName.toLowerCase(),
+      }"
+    >
       <div v-if="msg.sender === 'system'" class="text-grey-7 text-italic">
         {{ msg.text }}
       </div>

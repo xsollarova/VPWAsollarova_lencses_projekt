@@ -73,7 +73,7 @@
 
     <q-drawer v-model="chat.listOpen" side="right" bordered>
       <q-toolbar>
-        <q-toolbar-title>List</q-toolbar-title>
+        <q-toolbar-title>List of users</q-toolbar-title>
         <q-btn flat dense round icon="close" aria-label="Close list" @click="chat.listOpen = false" />
       </q-toolbar>
       <q-list>
