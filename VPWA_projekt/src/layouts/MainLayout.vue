@@ -71,6 +71,22 @@
       </q-list>
     </q-drawer>
 
+    <q-drawer v-model="chat.listOpen" side="right" bordered>
+      <q-toolbar>
+        <q-toolbar-title>List</q-toolbar-title>
+        <q-btn flat dense round icon="close" aria-label="Close list" @click="chat.listOpen = false" />
+      </q-toolbar>
+      <q-list>
+        <q-item-label header>Členovia kanála {{ chat.activeChannel?.name }}</q-item-label>
+        <q-item v-for="member in chat.activeChannel?.members ?? []" :key="member">
+          <q-item-section avatar>
+            <q-icon name="person" />
+          </q-item-section>
+          <q-item-section>{{ member }}</q-item-section>
+        </q-item>
+      </q-list>
+    </q-drawer>
+
     <q-footer class="bg-grey-2 q-pa-sm">
       <CommandInput />
     </q-footer>

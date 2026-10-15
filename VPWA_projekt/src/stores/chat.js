@@ -30,6 +30,7 @@ export const useChatStore = defineStore('chat', () => {
   ])
 
   const activeChannelId = ref(1)
+  const listOpen = ref(false)
 
   // priorita pozvanok
   const sortedChannels = computed(() => {
@@ -49,8 +50,12 @@ export const useChatStore = defineStore('chat', () => {
   function selectChannel(id) {
     const channel = channels.value.find((c) => c.id === id)
     if (!channel) return
-    channel.invited = false 
+    channel.invited = false
     activeChannelId.value = id
+  }
+
+  function openList() {
+    listOpen.value = true
   }
 
   let nextMessageId = 100
@@ -85,6 +90,10 @@ export const useChatStore = defineStore('chat', () => {
   function handleInput(raw) {
     const text = raw.trim()
     if (!text) return
+    if (text === '/list') {
+      openList()
+      return
+    }
     sendMessage(text)
   }
 
@@ -93,10 +102,12 @@ export const useChatStore = defineStore('chat', () => {
     channels,
     messages,
     activeChannelId,
+    listOpen,
     sortedChannels,
     activeChannel,
     activeMessages,
     selectChannel,
+    openList,
     handleInput,
     sendMessage,
     systemMessage,
