@@ -36,7 +36,9 @@ export const useChatStore = defineStore('chat', () => {
   // priorita pozvanok
   const sortedChannels = computed(() => {
     const invited = channels.value.filter((c) => c.invited)
-    const others = channels.value.filter((c) => !c.invited)
+    const others = channels.value.filter(
+      (c) => !c.invited && c.members.includes(currentUser.value.nickName),
+    )
     return [...invited, ...others]
   })
 
@@ -51,8 +53,72 @@ export const useChatStore = defineStore('chat', () => {
   function selectChannel(id) {
     const channel = channels.value.find((c) => c.id === id)
     if (!channel) return
+    if (channel.invited && !channel.members.includes(currentUser.value.nickName)) {
+      channel.members.push(currentUser.value.nickName)
+    }
     channel.invited = false
     activeChannelId.value = id
+  }
+
+  function createChannel(name, type) {
+    const channelName = name.trim()
+    if (!channelName) return
+
+    const id = Math.max(0, ...channels.value.map((channel) => channel.id)) + 1
+    channels.value.push({
+      id,
+      name: channelName,
+      type,
+      adminId: currentUser.value.id,
+      invited: false,
+      members: [currentUser.value.nickName],
+    })
+    activeChannelId.value = id
+  }
+
+  function joinPublicChannel(name) {
+    const channelName = name.trim().toLowerCase()
+    if (!channelName) return 'not-found'
+
+    const channel = channels.value.find(
+      (candidate) => candidate.name.toLowerCase() === channelName,
+    )
+    if (!channel) return 'not-found'
+    if (channel.type !== 'public') return 'private'
+
+    const nickName = currentUser.value.nickName
+    if (channel.members.includes(nickName)) {
+      activeChannelId.value = channel.id
+      return 'already-member'
+    }
+
+    channel.members.push(nickName)
+    channel.invited = false
+    activeChannelId.value = channel.id
+    return 'joined'
+  }
+
+  function leaveChannel(id) {
+    const channel = channels.value.find((c) => c.id === id)
+    if (!channel) return
+
+    channel.members = channel.members.filter(
+      (member) => member !== currentUser.value.nickName,
+    )
+    channel.invited = false
+
+    if (activeChannelId.value === id) {
+      activeChannelId.value = sortedChannels.value[0]?.id ?? null
+    }
+  }
+
+  function removeChannelMember(id, member) {
+    const channel = channels.value.find((c) => c.id === id)
+    if (!channel || channel.adminId !== currentUser.value.id) return
+    if (member === currentUser.value.nickName) return
+    if (!channel.members.includes(member)) return
+
+    channel.members = channel.members.filter((channelMember) => channelMember !== member)
   }
 
   function openList() {
@@ -125,6 +191,10 @@ export const useChatStore = defineStore('chat', () => {
     activeChannel,
     activeMessages,
     selectChannel,
+    createChannel,
+    joinPublicChannel,
+    leaveChannel,
+    removeChannelMember,
     openList,
     authenticate,
     handleInput,
