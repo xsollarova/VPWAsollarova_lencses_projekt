@@ -282,8 +282,10 @@ function joinChannel() {
   }
 
   joinChannelMessage.value =
-    result === 'private'
-      ? 'You cannot join a private channel this way.'
-      : 'No public channel with this name was found.'
+    {
+      private: 'You cannot join a private channel this way.',
+      banned: 'You are permanently banned from this channel.',
+      'not-found': 'No public channel with this name was found.',
+    }[result]
 }
 </script>

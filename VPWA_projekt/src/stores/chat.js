@@ -15,10 +15,10 @@ export const useChatStore = defineStore('chat', () => {
 
   // kanály - public a private
   const channels = ref([
-    { id: 1, name: 'general', type: 'public', adminId: 1, invited: false, members: ['david', 'anna', 'peter'] },
-    { id: 2, name: 'vpwa-team', type: 'private', adminId: 1, invited: false, members: ['david', 'anna'] },
-    { id: 3, name: 'memes', type: 'public', adminId: 2, invited: false, members: ['david', 'peter'] },
-    { id: 4, name: 'study-group', type: 'private', adminId: 2, invited: true, members: ['anna', 'peter'] },
+    { id: 1, name: 'general', type: 'public', adminId: 1, invited: false, members: ['david', 'anna', 'peter'], bannedMembers: [], kickVotes: [] },
+    { id: 2, name: 'vpwa-team', type: 'private', adminId: 1, invited: false, members: ['david', 'anna'], bannedMembers: [], kickVotes: [] },
+    { id: 3, name: 'memes', type: 'public', adminId: 2, invited: false, members: ['david', 'peter'], bannedMembers: [], kickVotes: [] },
+    { id: 4, name: 'study-group', type: 'private', adminId: 2, invited: true, members: ['anna', 'peter'], bannedMembers: [], kickVotes: [] },
   ])
 
   // hard code správy všetkých kanálov v jednom poli
@@ -53,6 +53,13 @@ export const useChatStore = defineStore('chat', () => {
   function selectChannel(id) {
     const channel = channels.value.find((c) => c.id === id)
     if (!channel) return
+    if (
+      channel.bannedMembers.some(
+        (member) => member.toLowerCase() === currentUser.value.nickName.toLowerCase(),
+      )
+    ) {
+      return
+    }
     if (channel.invited && !channel.members.includes(currentUser.value.nickName)) {
       channel.members.push(currentUser.value.nickName)
     }
@@ -72,6 +79,8 @@ export const useChatStore = defineStore('chat', () => {
       adminId: currentUser.value.id,
       invited: false,
       members: [currentUser.value.nickName],
+      bannedMembers: [],
+      kickVotes: [],
     })
     activeChannelId.value = id
   }
@@ -87,6 +96,13 @@ export const useChatStore = defineStore('chat', () => {
     if (channel.type !== 'public') return 'private'
 
     const nickName = currentUser.value.nickName
+    if (
+      channel.bannedMembers.some(
+        (member) => member.toLowerCase() === nickName.toLowerCase(),
+      )
+    ) {
+      return 'banned'
+    }
     if (channel.members.includes(nickName)) {
       activeChannelId.value = channel.id
       return 'already-member'
@@ -105,6 +121,9 @@ export const useChatStore = defineStore('chat', () => {
     channel.members = channel.members.filter(
       (member) => member !== currentUser.value.nickName,
     )
+    channel.kickVotes = channel.kickVotes.filter(
+      (vote) => vote.target.toLowerCase() !== currentUser.value.nickName.toLowerCase(),
+    )
     channel.invited = false
 
     if (activeChannelId.value === id) {
@@ -114,11 +133,77 @@ export const useChatStore = defineStore('chat', () => {
 
   function removeChannelMember(id, member) {
     const channel = channels.value.find((c) => c.id === id)
-    if (!channel || channel.adminId !== currentUser.value.id) return
-    if (member === currentUser.value.nickName) return
-    if (!channel.members.includes(member)) return
+    if (!channel) return 'channel-not-found'
+    if (channel.adminId !== currentUser.value.id) return 'not-admin'
+    if (member.toLowerCase() === currentUser.value.nickName.toLowerCase()) {
+      return 'cannot-remove-self'
+    }
 
-    channel.members = channel.members.filter((channelMember) => channelMember !== member)
+    const memberToRemove = channel.members.find(
+      (channelMember) => channelMember.toLowerCase() === member.toLowerCase(),
+    )
+    if (!memberToRemove) return 'member-not-found'
+
+    channel.members = channel.members.filter((channelMember) => channelMember !== memberToRemove)
+    channel.kickVotes = channel.kickVotes.filter(
+      (vote) => vote.target.toLowerCase() !== memberToRemove.toLowerCase(),
+    )
+    return 'removed'
+  }
+
+  function kickChannelMember(id, member) {
+    const channel = channels.value.find((candidate) => candidate.id === id)
+    if (!channel) return { status: 'channel-not-found' }
+
+    const target = channel.members.find(
+      (channelMember) => channelMember.toLowerCase() === member.toLowerCase(),
+    )
+    if (!target) return { status: 'member-not-found' }
+    if (target.toLowerCase() === currentUser.value.nickName.toLowerCase()) {
+      return { status: 'cannot-kick-self' }
+    }
+
+    if (channel.adminId === currentUser.value.id) {
+      channel.members = channel.members.filter((channelMember) => channelMember !== target)
+      channel.bannedMembers.push(target)
+      channel.kickVotes = channel.kickVotes.filter(
+        (vote) => vote.target.toLowerCase() !== target.toLowerCase(),
+      )
+      return { status: 'permanently-banned' }
+    }
+
+    if (channel.type !== 'public') return { status: 'not-admin' }
+    if (!channel.members.some(
+      (channelMember) =>
+        channelMember.toLowerCase() === currentUser.value.nickName.toLowerCase(),
+    )) {
+      return { status: 'not-member' }
+    }
+
+    let vote = channel.kickVotes.find(
+      (entry) => entry.target.toLowerCase() === target.toLowerCase(),
+    )
+    if (!vote) {
+      vote = { target, voters: [] }
+      channel.kickVotes.push(vote)
+    }
+
+    const nickName = currentUser.value.nickName
+    if (vote.voters.some((voter) => voter.toLowerCase() === nickName.toLowerCase())) {
+      return { status: 'already-voted', votes: vote.voters.length }
+    }
+
+    vote.voters.push(nickName)
+    if (vote.voters.length < 3) {
+      return { status: 'vote-added', votes: vote.voters.length }
+    }
+
+    channel.members = channel.members.filter((channelMember) => channelMember !== target)
+    channel.bannedMembers.push(target)
+    channel.kickVotes = channel.kickVotes.filter(
+      (entry) => entry.target.toLowerCase() !== target.toLowerCase(),
+    )
+    return { status: 'permanently-banned', votes: vote.voters.length }
   }
 
   function openList() {
@@ -178,6 +263,31 @@ export const useChatStore = defineStore('chat', () => {
       openList()
       return
     }
+    const kickCommand = text.match(/^\/kick(?:\s+(.*))?$/i)
+    if (kickCommand) {
+      const member = kickCommand[1]?.trim()
+      if (!member || /\s/.test(member)) {
+        systemMessage('Usage: /kick nickname')
+        return
+      }
+
+      const result = kickChannelMember(activeChannelId.value, member)
+      const feedback =
+        result.status === 'vote-added'
+          ? `Kick vote added for ${member} (${result.votes}/3).`
+          : result.status === 'already-voted'
+            ? `You have already voted to kick ${member} (${result.votes}/3).`
+            : {
+                'permanently-banned': `${member} was permanently banned from this channel.`,
+                'channel-not-found': 'There is no active channel.',
+                'not-admin': 'Only the channel admin can kick members in private channels.',
+                'not-member': 'Only channel members can vote to kick someone.',
+                'cannot-kick-self': 'You cannot kick yourself.',
+                'member-not-found': `Member "${member}" was not found in this channel.`,
+              }[result.status]
+      systemMessage(feedback)
+      return
+    }
     sendMessage(text)
   }
 
@@ -195,6 +305,7 @@ export const useChatStore = defineStore('chat', () => {
     joinPublicChannel,
     leaveChannel,
     removeChannelMember,
+    kickChannelMember,
     openList,
     authenticate,
     handleInput,
