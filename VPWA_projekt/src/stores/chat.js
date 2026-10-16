@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { Notify } from 'quasar'
 
 export const useChatStore = defineStore('chat', () => {
   // hard code pouzivatela
@@ -10,7 +11,8 @@ export const useChatStore = defineStore('chat', () => {
     nickName: 'david',
     email: 'david@test.sk',
     password: 'David1234',
-    status: 'online', // online | dnd | offline
+    status: 'online', // online | dnd | offline | xdnd
+    notifyOnlyDirectMessages: false,
   })
 
   // kanály - public a private
@@ -32,6 +34,7 @@ export const useChatStore = defineStore('chat', () => {
 
   const activeChannelId = ref(1)
   const listOpen = ref(false)
+  const typingUser = ref(null)
 
   // priorita pozvanok
   const sortedChannels = computed(() => {
@@ -48,6 +51,12 @@ export const useChatStore = defineStore('chat', () => {
 
   const activeMessages = computed(() =>
     messages.value.filter((m) => m.channelId === activeChannelId.value),
+  )
+
+  const typingIndicator = computed(() =>
+    typingUser.value?.channelId === activeChannelId.value
+      ? `${typingUser.value.nickName} is typing...`
+      : '',
   )
 
   function selectChannel(id) {
@@ -231,20 +240,72 @@ export const useChatStore = defineStore('chat', () => {
     )
   }
 
+  let typingTimeout
+
+  function simulateIncomingMessage(channel, sender, isDirectMessage) {
+    clearTimeout(typingTimeout)
+    typingUser.value = { channelId: channel.id, nickName: sender }
+
+    typingTimeout = setTimeout(() => {
+      typingUser.value = null
+      if (!channel.members.includes(sender)) return
+
+      const recipient = isDirectMessage ? currentUser.value.nickName : undefined
+      const text = recipient
+        ? `@${recipient} Thanks for reaching out!`
+        : 'Thanks for your message!'
+      const message = {
+        id: nextMessageId++,
+        channelId: channel.id,
+        sender,
+        text,
+        time: now(),
+        ...(recipient ? { recipient } : {}),
+      }
+      messages.value.push(message)
+
+      if (
+        currentUser.value.status !== 'dnd' &&
+        (!currentUser.value.notifyOnlyDirectMessages || recipient)
+      ) {
+        Notify.create({
+          icon: 'chat',
+          color: 'info',
+          textColor: recipient ? 'white' : 'dark',
+          classes: recipient ? 'chat-notification--mentioned' : '',
+          message: `${sender}: ${text}`,
+          caption: `#${channel.name}`,
+          timeout: 4000,
+        })
+      }
+    }, 1800)
+  }
+
   function sendMessage(text) {
-    if (!activeChannel.value) return
+    const channel = activeChannel.value
+    if (!channel) return
     const recipient = findRecipient(text)
     messages.value.push({
       id: nextMessageId++,
-      channelId: activeChannelId.value,
+      channelId: channel.id,
       sender: currentUser.value.nickName,
       text,
       time: now(),
       ...(recipient ? { recipient } : {}),
     })
+
+    const otherMembers = channel.members.filter(
+      (member) => member.toLowerCase() !== currentUser.value.nickName.toLowerCase(),
+    )
+    if (!otherMembers.length) return
+
+    const sender =
+      recipient && recipient.toLowerCase() !== currentUser.value.nickName.toLowerCase()
+        ? recipient
+        : otherMembers[0]
+    simulateIncomingMessage(channel, sender, Boolean(recipient))
   }
 
-  // systémová správa - napr. invite
   function systemMessage(text) {
     if (!activeChannel.value) return
     messages.value.push({
@@ -297,9 +358,11 @@ export const useChatStore = defineStore('chat', () => {
     messages,
     activeChannelId,
     listOpen,
+    typingUser,
     sortedChannels,
     activeChannel,
     activeMessages,
+    typingIndicator,
     selectChannel,
     createChannel,
     joinPublicChannel,

@@ -21,6 +21,10 @@
         <div>{{ msg.text }}</div>
       </template>
     </div>
+
+    <div v-if="chat.typingIndicator" class="text-grey-7 text-italic q-mt-md">
+      {{ chat.typingIndicator }}
+    </div>
   </q-page>
 </template>
 

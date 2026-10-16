@@ -35,6 +35,17 @@
               </q-item-section>
               <q-item-section>{{ status.label }}</q-item-section>
             </q-item>
+              <q-separator />
+              <q-item>
+                <q-item-section>xDND</q-item-section>
+                <q-item-section side>
+                  <q-toggle
+                    v-model="chat.currentUser.notifyOnlyDirectMessages"
+                    aria-label="xDND"
+                    @click.stop
+                  />
+                </q-item-section>
+              </q-item>
           </q-list>
         </q-btn-dropdown>
 

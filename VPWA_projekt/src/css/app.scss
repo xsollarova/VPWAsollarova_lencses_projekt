@@ -10,6 +10,10 @@
   background-color: #9c9cd1;
 }
 
+.q-notification.chat-notification--mentioned {
+  background-color: #4b4b79 !important;
+}
+
 .status-dot--online {
   color: rgb(40, 100, 55);
 }
