@@ -6,16 +6,18 @@
 
         <q-toolbar-title> ConnecChat </q-toolbar-title>
 
-        <q-btn flat dense round icon="account_circle" aria-label="User" />
+        <!-- profilovka + status -->
+        <q-btn flat dense round aria-label="User" class="q-mr-xs">
+          <UserAvatar :nick-name="chat.currentUser.nickName" size="30px" />
+        </q-btn>
 
-        <q-icon
-          :class="['q-mr-xs', `status-dot--${currentStatus.value}`]"
-          name="circle"
-          size="10px"
-          aria-hidden="true"
-        />
-        
-        <q-btn-dropdown flat dense no-caps label="Status" dropdown-icon="expand_more">
+        <q-btn-dropdown
+          flat
+          dense
+          no-caps
+          :label="currentStatus.label"
+          dropdown-icon="expand_more"
+        >
           <q-list>
             <q-item
               v-for="status in statuses"
@@ -219,11 +221,17 @@
       </q-toolbar>
       <q-list>
         <q-item-label header>Members of {{ chat.activeChannel?.name }}</q-item-label>
-        <q-item v-for="member in chat.activeChannel?.members ?? []" :key="member">
+        <q-item v-for="member in sortedMembers" :key="member">
           <q-item-section avatar>
-            <q-icon name="person" />
+            <UserAvatar :nick-name="member" size="36px" />
           </q-item-section>
-          <q-item-section>{{ member }}</q-item-section>
+          <q-item-section>
+            <q-item-label>{{ member }}</q-item-label>
+            <q-item-label caption>{{ STATUS_LABELS[chat.getUserStatus(member)] }}</q-item-label>
+          </q-item-section>
+          <q-item-section v-if="isAdmin(member)" side>
+            <q-badge color="grey-7" label="admin" />
+          </q-item-section>
         </q-item>
       </q-list>
     </q-drawer>
@@ -240,8 +248,9 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { useChatStore } from '@/stores/chat'
+import { useChatStore, STATUS_LABELS } from '@/stores/chat'
 import CommandInput from '@/components/CommandInput.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const chat = useChatStore()
 const leftDrawerOpen = ref(false)
@@ -262,6 +271,20 @@ const statuses = [
 const currentStatus = computed(
   () => statuses.find((status) => status.value === chat.currentUser.status) ?? statuses[0],
 )
+
+// pri zozname memberov zobrazi v poradi: online => DND => offline
+const STATUS_ORDER = { online: 0, dnd: 1, offline: 2 }
+const sortedMembers = computed(() =>
+  [...(chat.activeChannel?.members ?? [])].sort(
+    (a, b) =>
+      STATUS_ORDER[chat.getUserStatus(a)] - STATUS_ORDER[chat.getUserStatus(b)] ||
+      a.localeCompare(b),
+  ),
+)
+
+function isAdmin(member) {
+  return chat.activeChannel?.adminId === chat.getUserId(member)
+}
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value

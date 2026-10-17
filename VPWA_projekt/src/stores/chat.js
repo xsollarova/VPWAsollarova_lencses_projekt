@@ -2,6 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { Notify } from 'quasar'
 
+// popisy stavov
+export const STATUS_LABELS = {
+  online: 'Online',
+  dnd: 'Do not disturb',
+  offline: 'Offline',
+}
+
 export const useChatStore = defineStore('chat', () => {
   // hard code pouzivatela
   const currentUser = ref({
@@ -15,9 +22,30 @@ export const useChatStore = defineStore('chat', () => {
     notifyOnlyDirectMessages: false,
   })
 
+  // hard code ostatni pouzivatelia + ich statusy
+  const users = ref({
+    anna: { id: 2, nickName: 'anna', firstName: 'Anna', lastName: 'Nová', status: 'online' },
+    peter: { id: 3, nickName: 'peter', firstName: 'Peter', lastName: 'Malý', status: 'dnd' },
+    marek: { id: 4, nickName: 'marek', firstName: 'Marek', lastName: 'Kováč', status: 'offline' },
+  })
+
+  function getUserId(nickName) {
+    if (nickName.toLowerCase() === currentUser.value.nickName.toLowerCase()) {
+      return currentUser.value.id
+    }
+    return users.value[nickName.toLowerCase()]?.id
+  }
+
+  function getUserStatus(nickName) {
+    if (nickName.toLowerCase() === currentUser.value.nickName.toLowerCase()) {
+      return currentUser.value.status
+    }
+    return users.value[nickName.toLowerCase()]?.status ?? 'offline'
+  }
+
   // kanály - public a private
   const channels = ref([
-    { id: 1, name: 'general', type: 'public', adminId: 1, invited: false, members: ['david', 'anna', 'peter'], bannedMembers: [], kickVotes: [] },
+    { id: 1, name: 'general', type: 'public', adminId: 1, invited: false, members: ['david', 'anna', 'peter', 'marek'], bannedMembers: [], kickVotes: [] },
     { id: 2, name: 'vpwa-team', type: 'private', adminId: 1, invited: false, members: ['david', 'anna'], bannedMembers: [], kickVotes: [] },
     { id: 3, name: 'memes', type: 'public', adminId: 2, invited: false, members: ['david', 'peter'], bannedMembers: [], kickVotes: [] },
     { id: 4, name: 'study-group', type: 'private', adminId: 2, invited: true, members: ['anna', 'peter'], bannedMembers: [], kickVotes: [] },
@@ -354,6 +382,9 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     currentUser,
+    users,
+    getUserStatus,
+    getUserId,
     channels,
     messages,
     activeChannelId,

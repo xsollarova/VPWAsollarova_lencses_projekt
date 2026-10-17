@@ -26,6 +26,19 @@
   color: rgb(58, 38, 24);
 }
 
+// bodky pri profilovke
+.status-badge--online {
+  background-color: rgb(40, 100, 55);
+}
+
+.status-badge--offline {
+  background-color: rgb(117, 64, 67);
+}
+
+.status-badge--dnd {
+  background-color: rgb(58, 38, 24);
+}
+
 .bg-dark-green-our {
   background-color: #9c9cd1  ;
 }
