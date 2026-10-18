@@ -51,8 +51,27 @@ export const useChatStore = defineStore('chat', () => {
     { id: 4, name: 'study-group', type: 'private', adminId: 2, invited: true, members: ['anna', 'peter'], bannedMembers: [], kickVotes: [] },
   ])
 
+  // vygenerovanie histórie správ pre infinite scroll
+  function generateHistory(count) {
+    const senders = ['anna', 'peter', 'marek', 'david']
+    const history = []
+    for (let i = 1; i <= count; i++) {
+      const minutes = 8 * 60 + i
+      const time = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+      history.push({
+        id: 1000 + i,
+        channelId: 1,
+        sender: senders[i % senders.length],
+        text: `Správa č. ${i}`,
+        time,
+      })
+    }
+    return history
+  }
+
   // hard code správy všetkých kanálov v jednom poli
   const messages = ref([
+    ...generateHistory(60),
     { id: 1, channelId: 1, sender: 'anna', text: 'Ahoj všetkým!', time: '10:01' },
     { id: 2, channelId: 1, sender: 'peter', text: 'Čau, @david si tu?', time: '10:02', recipient: 'david'},
     { id: 3, channelId: 1, sender: 'david', text: 'Som, čo sa deje?', time: '10:03' },

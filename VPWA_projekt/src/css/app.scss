@@ -3,6 +3,22 @@
   background-color: #f0eeea;
 }
 
+.chat-typing {
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.chat-message {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.chat-message__body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .chat-message--mentioned {
   padding: 8px 12px;
   border-left: 4px solid #4b4b79;
