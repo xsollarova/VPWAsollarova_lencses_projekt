@@ -18,6 +18,7 @@ export const useChatStore = defineStore('chat', () => {
     nickName: 'david',
     email: 'david@test.sk',
     password: 'David1234',
+    avatarUrl: '',
     status: 'online', // online | dnd | offline | xdnd
     notifyOnlyDirectMessages: false,
   })
@@ -41,6 +42,13 @@ export const useChatStore = defineStore('chat', () => {
       return currentUser.value.status
     }
     return users.value[nickName.toLowerCase()]?.status ?? 'offline'
+  }
+
+  function getUserAvatar(nickName) {
+    if (nickName.toLowerCase() === currentUser.value.nickName.toLowerCase()) {
+      return currentUser.value.avatarUrl
+    }
+    return users.value[nickName.toLowerCase()]?.avatarUrl ?? ''
   }
 
   // kanály - public a private
@@ -291,11 +299,20 @@ export const useChatStore = defineStore('chat', () => {
     listOpen.value = true
   }
 
-  function authenticate(email, password) {
-    return (
-      email.trim().toLowerCase() === currentUser.value.email.toLowerCase() &&
-      password === currentUser.value.password
-    )
+  function authenticate(identifier, password) {
+    if (typeof identifier !== 'string' || typeof password !== 'string') return false
+    if (password.length < 8 || password.length > 128) return false
+
+    const normalizedIdentifier = identifier.trim().normalize('NFKC').toLowerCase()
+    if (!normalizedIdentifier || !password) return false
+
+    const email = currentUser.value.email.trim().normalize('NFKC').toLowerCase()
+    const nickName = currentUser.value.nickName.trim().normalize('NFKC').toLowerCase()
+    const matchesEmail = normalizedIdentifier === email
+    const matchesNickname =
+      normalizedIdentifier === nickName
+
+    return (matchesEmail || matchesNickname) && password === currentUser.value.password
   }
 
   function notifyIncomingMessage(message, channelName) {
@@ -452,6 +469,7 @@ export const useChatStore = defineStore('chat', () => {
     users,
     getUserStatus,
     getUserId,
+    getUserAvatar,
     setStatus,
     channels,
     messages,

@@ -7,7 +7,7 @@
         <q-toolbar-title> ConnecChat </q-toolbar-title>
 
         <!-- profilovka + status -->
-        <q-btn flat dense round aria-label="User" class="q-mr-xs">
+        <q-btn flat dense round aria-label="Open profile" class="q-mr-xs" @click="openProfileDialog">
           <UserAvatar :nick-name="chat.currentUser.nickName" size="30px" />
         </q-btn>
 
@@ -54,6 +54,44 @@
         <q-btn flat dense round icon="logout" aria-label="Logout" to="/login" />
       </q-toolbar>
     </q-header>
+
+    <q-dialog v-model="profileDialogOpen">
+      <q-card style="width: 420px; max-width: 90vw">
+        <q-card-section>
+          <div class="text-h6">Profile</div>
+        </q-card-section>
+
+        <q-card-section class="q-gutter-md">
+          <div class="row items-center q-gutter-md">
+            <UserAvatar :nick-name="chat.currentUser.nickName" size="64px" :show-status="false" />
+            <q-file
+              v-model="profileAvatarFile"
+              outlined
+              dense
+              accept="image/*"
+              label="Profile picture"
+            />
+          </div>
+          <q-input
+            v-model="profileFirstName"
+            outlined
+            label="First name"
+          />
+          <q-input v-model="profileLastName" outlined label="Last name" />
+          <q-input v-model="profileNickName" outlined label="Nickname" />
+          <q-input
+            v-model="profileEmail"
+            outlined
+            type="email"
+            label="Email"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Close" v-close-popup />
+          <q-btn color="primary" label="Save changes" @click="profileDialogOpen = false" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <q-drawer v-model="leftDrawerOpen" show-if-above bordered class="channel-drawer">
       <q-list>
@@ -279,6 +317,12 @@ import UserAvatar from '@/components/UserAvatar.vue'
 
 const chat = useChatStore()
 const leftDrawerOpen = ref(false)
+const profileDialogOpen = ref(false)
+const profileFirstName = ref('')
+const profileLastName = ref('')
+const profileNickName = ref('')
+const profileEmail = ref('')
+const profileAvatarFile = ref(null)
 const createChannelDialogOpen = ref(false)
 const deleteChannelDialogOpen = ref(false)
 const channelToDelete = ref(null)
@@ -319,6 +363,15 @@ function toggleLeftDrawer() {
 
 function setStatus(status) {
   chat.setStatus(status)
+}
+
+function openProfileDialog() {
+  profileFirstName.value = chat.currentUser.firstName
+  profileLastName.value = chat.currentUser.lastName
+  profileNickName.value = chat.currentUser.nickName
+  profileEmail.value = chat.currentUser.email
+  profileAvatarFile.value = null
+  profileDialogOpen.value = true
 }
 
 function openCreateChannelDialog() {

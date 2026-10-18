@@ -2,7 +2,8 @@
   <!-- profilovka pouzivatela + status vo forme bodky pri profilovke -->
   <div class="user-avatar" :style="{ width: size, height: size }">
     <q-avatar :size="size" :style="{ backgroundColor: color }" text-color="grey-9">
-      {{ initial }}
+      <img v-if="avatarUrl" :src="avatarUrl" alt="Profile picture" />
+      <template v-else>{{ initial }}</template>
     </q-avatar>
     <span
       v-if="showStatus"
@@ -30,6 +31,7 @@ const chat = useChatStore()
 const AVATAR_COLORS = ['#d6d6f0', '#f0dcd2', '#e6e0d6', '#d2ead8', '#d4e4ec', '#ecd6e4']
 
 const initial = computed(() => props.nickName.charAt(0).toUpperCase())
+const avatarUrl = computed(() => chat.getUserAvatar(props.nickName))
 
 // farba sa vyberie podla prveho pismena nickname-u
 const color = computed(

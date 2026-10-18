@@ -34,7 +34,7 @@
             val => /\d/.test(val) || 'Password must contain at least one digit'
           ]"/>
 
-      <q-btn color="primary" label="Register" class="full-width" no-caps/>
+      <q-btn type="submit" color="primary" label="Register" class="full-width" no-caps />
       <q-btn to="/login" label="Back to login" flat class="full-width q-mt-sm" no-caps />
       </q-form>
     </q-card>
