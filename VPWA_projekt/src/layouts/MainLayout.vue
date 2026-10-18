@@ -112,6 +112,14 @@
                   </q-item>
                   <q-item
                     v-if="channel.adminId === chat.currentUser.id"
+                    v-close-popup
+                    clickable
+                    @click.stop="openDeleteChannelDialog(channel)"
+                  >
+                    <q-item-section>Delete channel</q-item-section>
+                  </q-item>
+                  <q-item
+                    v-if="channel.adminId === chat.currentUser.id"
                     clickable
                     @click.stop
                   >
@@ -214,6 +222,23 @@
       </q-card>
     </q-dialog>
 
+    <q-dialog v-model="deleteChannelDialogOpen">
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">Delete channel</div>
+          <div class="q-mt-sm">
+            Are you sure you want to delete
+            <strong>#{{ channelToDelete?.name }}</strong>? This will permanently remove its
+            messages.
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn color="negative" label="Delete" @click="confirmDeleteChannel" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-drawer v-model="chat.listOpen" side="right" bordered>
       <q-toolbar>
         <q-toolbar-title>List of users</q-toolbar-title>
@@ -255,6 +280,8 @@ import UserAvatar from '@/components/UserAvatar.vue'
 const chat = useChatStore()
 const leftDrawerOpen = ref(false)
 const createChannelDialogOpen = ref(false)
+const deleteChannelDialogOpen = ref(false)
+const channelToDelete = ref(null)
 const newChannelName = ref('')
 const newChannelType = ref('public')
 const joinChannelName = ref('')
@@ -291,7 +318,7 @@ function toggleLeftDrawer() {
 }
 
 function setStatus(status) {
-  chat.currentUser.status = status
+  chat.setStatus(status)
 }
 
 function openCreateChannelDialog() {
@@ -305,6 +332,18 @@ function openCreateChannelDialog() {
 function createChannel() {
   chat.createChannel(newChannelName.value, newChannelType.value)
   createChannelDialogOpen.value = false
+}
+
+function openDeleteChannelDialog(channel) {
+  channelToDelete.value = channel
+  deleteChannelDialogOpen.value = true
+}
+
+function confirmDeleteChannel() {
+  if (!channelToDelete.value) return
+  chat.deleteChannel(channelToDelete.value.id)
+  deleteChannelDialogOpen.value = false
+  channelToDelete.value = null
 }
 
 function joinChannel() {

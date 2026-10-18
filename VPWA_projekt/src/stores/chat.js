@@ -82,6 +82,8 @@ export const useChatStore = defineStore('chat', () => {
   const activeChannelId = ref(1)
   const listOpen = ref(false)
   const typingUser = ref(null)
+  const pendingIncomingMessages = ref([])
+  let typingTimeout
 
   // priorita pozvanok
   const sortedChannels = computed(() => {
@@ -187,6 +189,29 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function deleteChannel(id) {
+    const channel = channels.value.find((candidate) => candidate.id === id)
+    if (!channel) return 'channel-not-found'
+    if (channel.adminId !== currentUser.value.id) return 'not-admin'
+
+    channels.value = channels.value.filter((candidate) => candidate.id !== id)
+    messages.value = messages.value.filter((message) => message.channelId !== id)
+    pendingIncomingMessages.value = pendingIncomingMessages.value.filter(
+      (message) => message.channelId !== id,
+    )
+
+    if (typingUser.value?.channelId === id) {
+      clearTimeout(typingTimeout)
+      typingUser.value = null
+    }
+
+    if (activeChannelId.value === id) {
+      activeChannelId.value = sortedChannels.value[0]?.id ?? null
+    }
+
+    return 'deleted'
+  }
+
   function removeChannelMember(id, member) {
     const channel = channels.value.find((c) => c.id === id)
     if (!channel) return 'channel-not-found'
@@ -273,6 +298,40 @@ export const useChatStore = defineStore('chat', () => {
     )
   }
 
+  function notifyIncomingMessage(message, channelName) {
+    if (
+      currentUser.value.status === 'dnd' ||
+      (currentUser.value.notifyOnlyDirectMessages && !message.recipient)
+    ) {
+      return
+    }
+
+    Notify.create({
+      icon: 'chat',
+      color: 'info',
+      textColor: message.recipient ? 'white' : 'dark',
+      classes: message.recipient ? 'chat-notification--mentioned' : '',
+      message: `${message.sender}: ${message.text}`,
+      caption: `#${channelName}`,
+      timeout: 4000,
+    })
+  }
+
+  function setStatus(status) {
+    currentUser.value.status = status
+    if (status !== 'online') return
+
+    const messagesToDeliver = pendingIncomingMessages.value
+    pendingIncomingMessages.value = []
+    for (const message of messagesToDeliver) {
+      const channel = channels.value.find((candidate) => candidate.id === message.channelId)
+      if (!channel) continue
+
+      messages.value.push(message)
+      notifyIncomingMessage(message, channel.name)
+    }
+  }
+
   let nextMessageId = 100
 
   function now() {
@@ -286,8 +345,6 @@ export const useChatStore = defineStore('chat', () => {
       (member) => member.toLowerCase() === mention[1].toLowerCase(),
     )
   }
-
-  let typingTimeout
 
   function simulateIncomingMessage(channel, sender, isDirectMessage) {
     clearTimeout(typingTimeout)
@@ -309,21 +366,12 @@ export const useChatStore = defineStore('chat', () => {
         time: now(),
         ...(recipient ? { recipient } : {}),
       }
-      messages.value.push(message)
 
-      if (
-        currentUser.value.status !== 'dnd' &&
-        (!currentUser.value.notifyOnlyDirectMessages || recipient)
-      ) {
-        Notify.create({
-          icon: 'chat',
-          color: 'info',
-          textColor: recipient ? 'white' : 'dark',
-          classes: recipient ? 'chat-notification--mentioned' : '',
-          message: `${sender}: ${text}`,
-          caption: `#${channel.name}`,
-          timeout: 4000,
-        })
+      if (currentUser.value.status === 'offline') {
+        pendingIncomingMessages.value.push(message)
+      } else {
+        messages.value.push(message)
+        notifyIncomingMessage(message, channel.name)
       }
     }, 1800)
   }
@@ -404,6 +452,7 @@ export const useChatStore = defineStore('chat', () => {
     users,
     getUserStatus,
     getUserId,
+    setStatus,
     channels,
     messages,
     activeChannelId,
@@ -417,6 +466,7 @@ export const useChatStore = defineStore('chat', () => {
     createChannel,
     joinPublicChannel,
     leaveChannel,
+    deleteChannel,
     removeChannelMember,
     kickChannelMember,
     openList,
