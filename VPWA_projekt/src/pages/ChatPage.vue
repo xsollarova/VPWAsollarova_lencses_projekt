@@ -44,9 +44,34 @@
       </q-infinite-scroll>
     </div>
 
-    <div class="chat-typing text-grey-7 text-italic q-px-md">
-      {{ chat.typingIndicator }}
+    <div class="chat-typing text-grey-7 q-px-md">
+      <q-btn
+        v-if="chat.activeTypingUser"
+        flat
+        dense
+        no-caps
+        class="chat-typing__button"
+        :label="`${chat.activeTypingUser.nickName} is typing...`"
+        @click="typingPreviewOpen = true"
+      />
     </div>
+
+    <q-dialog v-model="typingPreviewOpen">
+      <q-card style="width: 360px; max-width: 90vw">
+        <q-card-section class="row items-center q-gutter-sm">
+          <UserAvatar :nick-name="chat.activeTypingUser?.nickName ?? ''" size="36px" />
+          <div class="text-subtitle1">
+            {{ chat.activeTypingUser?.nickName }} is typing
+          </div>
+        </q-card-section>
+        <q-card-section class="typing-preview">
+          {{ chat.activeTypingUser?.draftText || '...' }}
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Close" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -57,6 +82,7 @@ import UserAvatar from '@/components/UserAvatar.vue'
 
 const chat = useChatStore()
 const scrollBox = ref(null)
+const typingPreviewOpen = ref(false)
 
 // pocet sprav, ktore sa nacitaju z historie
 const PAGE_SIZE = 20
@@ -69,6 +95,13 @@ const ready = ref(false)
 
 // spravy sa zobrazuju od hodnoty firstVisibleIndex-u
 const visibleMessages = computed(() => chat.activeMessages.slice(firstVisibleIndex.value))
+
+watch(
+  () => chat.activeTypingUser,
+  (typingUser) => {
+    if (!typingUser) typingPreviewOpen.value = false
+  },
+)
 
 function pageHeight(offset, height) {
   return { height: `${height - offset}px` }

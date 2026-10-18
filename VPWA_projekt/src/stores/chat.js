@@ -91,6 +91,7 @@ export const useChatStore = defineStore('chat', () => {
   const listOpen = ref(false)
   const typingUser = ref(null)
   const pendingIncomingMessages = ref([])
+  let typingInterval
   let typingTimeout
 
   // priorita pozvanok
@@ -114,6 +115,10 @@ export const useChatStore = defineStore('chat', () => {
     typingUser.value?.channelId === activeChannelId.value
       ? `${typingUser.value.nickName} is typing...`
       : '',
+  )
+
+  const activeTypingUser = computed(() =>
+    typingUser.value?.channelId === activeChannelId.value ? typingUser.value : null,
   )
 
   function selectChannel(id) {
@@ -209,7 +214,10 @@ export const useChatStore = defineStore('chat', () => {
     )
 
     if (typingUser.value?.channelId === id) {
+      clearInterval(typingInterval)
       clearTimeout(typingTimeout)
+      typingInterval = null
+      typingTimeout = null
       typingUser.value = null
     }
 
@@ -364,17 +372,32 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function simulateIncomingMessage(channel, sender, isDirectMessage) {
+    clearInterval(typingInterval)
     clearTimeout(typingTimeout)
-    typingUser.value = { channelId: channel.id, nickName: sender }
+    const recipient = isDirectMessage ? currentUser.value.nickName : undefined
+    const text = recipient
+      ? `@${recipient} Thanks for reaching out!`
+      : 'Thanks for your message!'
+    let visibleCharacterCount = 0
+    typingUser.value = { channelId: channel.id, nickName: sender, draftText: '' }
 
-    typingTimeout = setTimeout(() => {
+    typingInterval = setInterval(() => {
+      visibleCharacterCount += 1
+      if (typingUser.value?.channelId === channel.id) {
+        typingUser.value.draftText = text.slice(0, visibleCharacterCount)
+      }
+      if (visibleCharacterCount >= text.length) {
+        clearInterval(typingInterval)
+        typingInterval = null
+        typingTimeout = setTimeout(finishTyping, 500)
+      }
+    }, 100)
+
+    function finishTyping() {
       typingUser.value = null
+      typingTimeout = null
       if (!channel.members.includes(sender)) return
 
-      const recipient = isDirectMessage ? currentUser.value.nickName : undefined
-      const text = recipient
-        ? `@${recipient} Thanks for reaching out!`
-        : 'Thanks for your message!'
       const message = {
         id: nextMessageId++,
         channelId: channel.id,
@@ -390,7 +413,7 @@ export const useChatStore = defineStore('chat', () => {
         messages.value.push(message)
         notifyIncomingMessage(message, channel.name)
       }
-    }, 1800)
+    }
   }
 
   function sendMessage(text) {
@@ -476,6 +499,7 @@ export const useChatStore = defineStore('chat', () => {
     activeChannelId,
     listOpen,
     typingUser,
+    activeTypingUser,
     sortedChannels,
     activeChannel,
     activeMessages,
