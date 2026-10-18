@@ -484,6 +484,11 @@ export const useChatStore = defineStore('chat', () => {
       systemMessage(feedback)
       return
     }
+    // osetrenie neznameho prikazu
+    if (text.startsWith('/')) {
+      systemMessage(`Unknown command: ${text.split(' ')[0]}`)
+      return
+    }
     sendMessage(text)
   }
 
