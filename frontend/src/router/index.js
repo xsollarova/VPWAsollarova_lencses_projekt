@@ -7,6 +7,7 @@ import {
 } from 'vue-router'
 
 import routes from './routes.js'
+import { useChatStore } from '@/stores/chat'
 
 /*
  * If not building with SSR mode, you can
@@ -17,7 +18,7 @@ import routes from './routes.js'
  * with the Router instance.
  */
 
-export default defineRouter((/* { store, ssrContext } */) => {
+export default defineRouter(({ store }) => {
   const createHistory = import.meta.env.QUASAR_SERVER
     ? createMemoryHistory
     : import.meta.env.QUASAR_VUE_ROUTER_MODE === 'history'
@@ -32,6 +33,21 @@ export default defineRouter((/* { store, ssrContext } */) => {
     // quasar.conf.js -> build -> vueRouterMode
     // quasar.conf.js -> build -> publicPath
     history: createHistory(import.meta.env.QUASAR_VUE_ROUTER_BASE),
+  })
+
+  // chat len pre prihlasenych a login/register len pre neprihlasenych
+  Router.beforeEach(async (to) => {
+    const chat = useChatStore(store)
+    const hasToken = !!localStorage.getItem('token')
+
+    // po refreshi stranky obnovime prihlaseneho pouzivatela
+    if (hasToken && !chat.isLoggedIn) {
+      await chat.fetchProfile()
+    }
+
+    const isAuthPage = to.path === '/login' || to.path === '/register'
+    if (to.path.startsWith('/chat') && !chat.isLoggedIn) return '/login'
+    if (isAuthPage && chat.isLoggedIn) return '/chat'
   })
 
   return Router

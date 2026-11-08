@@ -51,7 +51,7 @@
           </q-list>
         </q-btn-dropdown>
 
-        <q-btn flat dense round icon="logout" aria-label="Logout" to="/login" />
+        <q-btn flat dense round icon="logout" aria-label="Logout" @click="logout" />
       </q-toolbar>
     </q-header>
 
@@ -311,11 +311,17 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore, STATUS_LABELS } from '@/stores/chat'
 import CommandInput from '@/components/CommandInput.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 
 const chat = useChatStore()
+const router = useRouter()
+async function logout() {
+  await chat.logout()
+  router.push('/login')
+}
 const leftDrawerOpen = ref(false)
 const profileDialogOpen = ref(false)
 const profileFirstName = ref('')

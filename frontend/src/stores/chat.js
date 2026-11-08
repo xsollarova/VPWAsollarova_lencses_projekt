@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { Notify } from 'quasar'
+import { api } from '@/boot/axios'
 
 // popisy stavov
 export const STATUS_LABELS = {
@@ -10,18 +11,87 @@ export const STATUS_LABELS = {
 }
 
 export const useChatStore = defineStore('chat', () => {
-  // hard code pouzivatela
-  const currentUser = ref({
-    id: 1,
-    firstName: 'David',
-    lastName: 'Test',
-    nickName: 'david',
-    email: 'david@test.sk',
-    password: 'David1234',
+  
+  // prihlaseny pouzivatel => naplnime po logine/registri
+  const emptyUser = () => ({
+    id: null,
+    firstName: '',
+    lastName: '',
+    nickName: '',
+    email: '',
     avatarUrl: '',
-    status: 'online', // online | dnd | offline | xdnd
+    status: 'online', // online | dnd | offline
     notifyOnlyDirectMessages: false,
   })
+  const currentUser = ref(emptyUser())
+  const isLoggedIn = computed(() => currentUser.value.id !== null)
+
+  // prevedieme usera z backendu => na frontend
+  function setUserFromApi(user) {
+    currentUser.value = {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      nickName: user.nickName,
+      email: user.email,
+      avatarUrl: user.avatarUrl ?? '',
+      status: user.status ?? 'online',
+      notifyOnlyDirectMessages: Boolean(user.notifyOnlyMentions),
+    }
+  }
+
+  // error v odpovedi od backendu
+  function apiError(error, fallback) {
+    const errors = error.response?.data?.errors
+    if (Array.isArray(errors) && errors.length) return errors.map((e) => e.message).join(' ')
+    if (!error.response) return 'Server is not reachable. Is the backend running?'
+    return fallback
+  }
+
+  async function login(identifier, password) {
+    try {
+      const { data } = await api.post('/auth/login', { identifier, password })
+      localStorage.setItem('token', data.data.token)
+      setUserFromApi(data.data.user)
+      return null
+    } catch (error) {
+      return apiError(error, 'Invalid email, nickname or password')
+    }
+  }
+
+  async function register(form) {
+    try {
+      const { data } = await api.post('/auth/signup', form)
+      localStorage.setItem('token', data.data.token)
+      setUserFromApi(data.data.user)
+      return null
+    } catch (error) {
+      return apiError(error, 'Registration failed')
+    }
+  }
+
+  // po refreshi stranky nacitame usera podla ulozeneho tokenu
+  async function fetchProfile() {
+    try {
+      const { data } = await api.get('/account/profile')
+      setUserFromApi(data.data)
+      return true
+    } catch {
+      localStorage.removeItem('token')
+      currentUser.value = emptyUser()
+      return false
+    }
+  }
+
+  async function logout() {
+    try {
+      await api.post('/account/logout')
+    } catch {
+      // backend logout zlyhal
+    }
+    localStorage.removeItem('token')
+    currentUser.value = emptyUser()
+  }
 
   // hard code ostatni pouzivatelia + ich statusy
   const users = ref({
@@ -307,22 +377,6 @@ export const useChatStore = defineStore('chat', () => {
     listOpen.value = true
   }
 
-  function authenticate(identifier, password) {
-    if (typeof identifier !== 'string' || typeof password !== 'string') return false
-    if (password.length < 8 || password.length > 128) return false
-
-    const normalizedIdentifier = identifier.trim().normalize('NFKC').toLowerCase()
-    if (!normalizedIdentifier || !password) return false
-
-    const email = currentUser.value.email.trim().normalize('NFKC').toLowerCase()
-    const nickName = currentUser.value.nickName.trim().normalize('NFKC').toLowerCase()
-    const matchesEmail = normalizedIdentifier === email
-    const matchesNickname =
-      normalizedIdentifier === nickName
-
-    return (matchesEmail || matchesNickname) && password === currentUser.value.password
-  }
-
   function notifyIncomingMessage(message, channelName) {
     if (
       currentUser.value.status === 'dnd' ||
@@ -517,7 +571,11 @@ export const useChatStore = defineStore('chat', () => {
     removeChannelMember,
     kickChannelMember,
     openList,
-    authenticate,
+    isLoggedIn,
+    login,
+    register,
+    fetchProfile,
+    logout,
     handleInput,
     sendMessage,
     systemMessage,

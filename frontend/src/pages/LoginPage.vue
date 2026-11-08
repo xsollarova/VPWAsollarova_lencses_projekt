@@ -26,7 +26,7 @@
         :rules="[
           (value) => !!value || 'Password is required',
           (value) => value.length >= 8 || 'Password must have at least 8 characters',
-          (value) => value.length <= 128 || 'Password can have at most 128 characters',
+          (value) => value.length <= 32 || 'Password can have at most 32 characters',
         ]"
       >
         <template #append>
@@ -41,11 +41,8 @@
         </template>
       </q-input>
 
-      <q-btn type="submit" color="primary" label="Log in" class="full-width" no-caps />
+      <q-btn type="submit" color="primary" label="Log in" class="full-width" no-caps :loading="loading" />
       <q-btn to="/register" label="Create account" flat class="full-width q-mt-sm" no-caps />
-      <div class="text-caption text-grey-7 q-mt-md">
-        Test account: david@test.sk or david / David1234
-      </div>
     </q-form>
     </q-card>
   </q-page>
@@ -62,10 +59,15 @@ const identifier = ref('')
 const password = ref('')
 const passwordVisible = ref(false)
 const loginError = ref('')
+const loading = ref(false)
 
-function login() {
-  if (!chat.authenticate(identifier.value, password.value)) {
-    loginError.value = 'Invalid email, nickname or password'
+async function login() {
+  loginError.value = ''
+  loading.value = true
+  const error = await chat.login(identifier.value.trim(), password.value)
+  loading.value = false
+  if (error) {
+    loginError.value = error
     return
   }
   router.push('/chat')
