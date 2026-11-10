@@ -29,4 +29,8 @@ export interface ApiDefinition {
     acceptInvitation: typeof routes['channels.accept_invitation']
     declineInvitation: typeof routes['channels.decline_invitation']
   }
+  messages: {
+    index: typeof routes['messages.index']
+    store: typeof routes['messages.store']
+  }
 }

@@ -124,15 +124,15 @@ export const useChatStore = defineStore('chat', () => {
   // kanaly z backendu
   const channels = ref([])
 
-  // spravy (zatial lokalne, z backendu az v bode 3)
+  // spravy nacitane z backendu (pre vsetky otvorene kanaly)
   const messages = ref([])
+  // ci ma kanal este starsie spravy na backende pre infinite scroll
+  const hasMoreMessages = ref({})
 
   const activeChannelId = ref(null)
   const listOpen = ref(false)
   const typingUser = ref(null)
   const pendingIncomingMessages = ref([])
-  let typingInterval
-  let typingTimeout
 
   // priorita pozvanok
   const sortedChannels = computed(() => {
@@ -377,94 +377,90 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  let nextMessageId = 100
+  // lokalne ID pre systemove spravy (ine ako tie v nasej databaze)
+  let nextLocalId = 1
 
-  function now() {
-    return new Date().toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })
+  function formatTime(isoDate) {
+    return new Date(isoDate).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })
   }
 
-  function findRecipient(text) {
+  function now() {
+    return formatTime(new Date())
+  }
+
+  // komu je sprava adresovana (@nickname)
+  function findRecipient(text, channelId = activeChannelId.value) {
     const mention = text.match(/@([a-zA-Z0-9_]+)/)
     if (!mention) return undefined
-    return activeChannel.value?.members.find(
+    const channel = channels.value.find((c) => c.id === channelId)
+    return channel?.members.find(
       (member) => member.toLowerCase() === mention[1].toLowerCase(),
     )
   }
 
-  function simulateIncomingMessage(channel, sender, isDirectMessage) {
-    clearInterval(typingInterval)
-    clearTimeout(typingTimeout)
-    const recipient = isDirectMessage ? currentUser.value.nickName : undefined
-    const text = recipient
-      ? `@${recipient} Thanks for reaching out!`
-      : 'Thanks for your message!'
-    let visibleCharacterCount = 0
-    typingUser.value = { channelId: channel.id, nickName: sender, draftText: '' }
-
-    typingInterval = setInterval(() => {
-      visibleCharacterCount += 1
-      if (typingUser.value?.channelId === channel.id) {
-        typingUser.value.draftText = text.slice(0, visibleCharacterCount)
-      }
-      if (visibleCharacterCount >= text.length) {
-        clearInterval(typingInterval)
-        typingInterval = null
-        typingTimeout = setTimeout(finishTyping, 500)
-      }
-    }, 100)
-
-    function finishTyping() {
-      typingUser.value = null
-      typingTimeout = null
-      if (!channel.members.includes(sender)) return
-
-      const message = {
-        id: nextMessageId++,
-        channelId: channel.id,
-        sender,
-        text,
-        time: now(),
-        ...(recipient ? { recipient } : {}),
-      }
-
-      if (currentUser.value.status === 'offline') {
-        pendingIncomingMessages.value.push(message)
-      } else {
-        messages.value.push(message)
-        notifyIncomingMessage(message, channel.name)
-      }
+  // prevedie spravu z backendu na frontend
+  function mapMessage(message) {
+    const recipient = findRecipient(message.text, message.channelId)
+    return {
+      id: message.id,
+      channelId: message.channelId,
+      sender: message.sender,
+      text: message.text,
+      time: formatTime(message.createdAt),
+      ...(recipient ? { recipient } : {}),
     }
   }
 
-  function sendMessage(text) {
+  // nacita poslednych 20 sprav kanala
+  async function loadMessages(channelId) {
+    try {
+      const { data } = await api.get(`/channels/${channelId}/messages`)
+      messages.value = [
+        ...messages.value.filter((m) => m.channelId !== channelId),
+        ...data.data.map(mapMessage),
+      ]
+      hasMoreMessages.value[channelId] = data.hasMore
+    } catch (error) {
+      showError(error, 'Could not load messages')
+    }
+  }
+
+  // nacita 20 starsich sprav (infinite scroll), vrati ci su este dalsie
+  async function loadOlderMessages(channelId) {
+    if (!hasMoreMessages.value[channelId]) return false
+
+    const oldest = messages.value.find(
+      (m) => m.channelId === channelId && typeof m.id === 'number',
+    )
+    try {
+      const { data } = await api.get(`/channels/${channelId}/messages`, {
+        params: oldest ? { before: oldest.id } : {},
+      })
+      messages.value = [...data.data.map(mapMessage), ...messages.value]
+      hasMoreMessages.value[channelId] = data.hasMore
+      return data.hasMore
+    } catch (error) {
+      showError(error, 'Could not load older messages')
+      return false
+    }
+  }
+
+  async function sendMessage(text) {
     const channel = activeChannel.value
     if (!channel) return
-    const recipient = findRecipient(text)
-    messages.value.push({
-      id: nextMessageId++,
-      channelId: channel.id,
-      sender: currentUser.value.nickName,
-      text,
-      time: now(),
-      ...(recipient ? { recipient } : {}),
-    })
 
-    const otherMembers = channel.members.filter(
-      (member) => member.toLowerCase() !== currentUser.value.nickName.toLowerCase(),
-    )
-    if (!otherMembers.length) return
-
-    const sender =
-      recipient && recipient.toLowerCase() !== currentUser.value.nickName.toLowerCase()
-        ? recipient
-        : otherMembers[0]
-    simulateIncomingMessage(channel, sender, Boolean(recipient))
+    try {
+      const { data } = await api.post(`/channels/${channel.id}/messages`, { text })
+      messages.value.push(mapMessage(data.data))
+    } catch (error) {
+      systemMessage(apiError(error, 'Message could not be sent'))
+    }
   }
 
   function systemMessage(text) {
     if (!activeChannel.value) return
     messages.value.push({
-      id: nextMessageId++,
+      id: `local-${nextLocalId++}`,
       channelId: activeChannelId.value,
       sender: 'system',
       text,
@@ -531,6 +527,8 @@ export const useChatStore = defineStore('chat', () => {
     typingIndicator,
     loadChannels,
     selectChannel,
+    loadMessages,
+    loadOlderMessages,
     createChannel,
     joinPublicChannel,
     leaveChannel,

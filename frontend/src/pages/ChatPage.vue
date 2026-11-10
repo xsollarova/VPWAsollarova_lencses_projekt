@@ -84,17 +84,10 @@ const chat = useChatStore()
 const scrollBox = ref(null)
 const typingPreviewOpen = ref(false)
 
-// pocet sprav, ktore sa nacitaju z historie
-const PAGE_SIZE = 20
-
-// index prvej zobrazenej správy
-const firstVisibleIndex = ref(0)
-
-// infinite scroll je vypnuty => kym sa nescrollne hore
+// infinite scroll je vypnuty => kym sa nenacitaju spravy kanala
 const ready = ref(false)
 
-// spravy sa zobrazuju od hodnoty firstVisibleIndex-u
-const visibleMessages = computed(() => chat.activeMessages.slice(firstVisibleIndex.value))
+const visibleMessages = computed(() => chat.activeMessages)
 
 watch(
   () => chat.activeTypingUser,
@@ -113,12 +106,13 @@ async function scrollToBottom() {
   if (scrollBox.value) scrollBox.value.scrollTop = scrollBox.value.scrollHeight
 }
 
-// pri kliknuti na kanal ukaze len posledných PAGE_SIZE sprav
+// pri prepnuti kanala nacita jeho poslednych 20 sprav z backendu
 watch(
   () => chat.activeChannelId,
-  async () => {
+  async (channelId) => {
     ready.value = false
-    firstVisibleIndex.value = Math.max(0, chat.activeMessages.length - PAGE_SIZE)
+    if (!channelId) return
+    await chat.loadMessages(channelId)
     await scrollToBottom()
     ready.value = true
   },
@@ -126,17 +120,11 @@ watch(
 )
 
 // pri novej sprave sa scrollne dole
-watch(() => chat.activeMessages.length, scrollToBottom)
+watch(() => chat.activeMessages.at(-1)?.id, scrollToBottom)
 
-function loadOlderMessages(index, done) {
-  if (firstVisibleIndex.value === 0) {
-    done(true)
-    return
-  }
-  // simulácia oneskorenia
-  setTimeout(() => {
-    firstVisibleIndex.value = Math.max(0, firstVisibleIndex.value - PAGE_SIZE)
-    done(firstVisibleIndex.value === 0)
-  }, 700)
+// scroll hore => nacita starsie spravy z backendu
+async function loadOlderMessages(index, done) {
+  const hasMore = await chat.loadOlderMessages(chat.activeChannelId)
+  done(!hasMore)
 }
 </script>
