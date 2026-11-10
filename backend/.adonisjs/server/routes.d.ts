@@ -8,17 +8,38 @@ export type ScannedRoutes = {
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
+    'channels.index': { paramsTuple?: []; params?: {} }
+    'channels.store': { paramsTuple?: []; params?: {} }
+    'channels.join': { paramsTuple?: []; params?: {} }
+    'channels.leave': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.remove_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
+    'channels.invite': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.accept_invitation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.decline_invitation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   GET: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
+    'channels.index': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
+    'channels.index': { paramsTuple?: []; params?: {} }
   }
   POST: {
     'auth.new_account.store': { paramsTuple?: []; params?: {} }
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
+    'channels.store': { paramsTuple?: []; params?: {} }
+    'channels.join': { paramsTuple?: []; params?: {} }
+    'channels.leave': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.invite': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.accept_invitation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.decline_invitation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+  }
+  DELETE: {
+    'channels.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.remove_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
   }
 }
 declare module '@adonisjs/core/types/http' {

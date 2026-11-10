@@ -33,14 +33,14 @@ export class AuthAccessTokenSchema extends BaseModel {
 }
 
 export class ChannelBanSchema extends BaseModel {
-  static $columns = ['bannedById', 'createdAt', 'channelId', 'userId'] as const
+  static $columns = ['bannedById', 'channelId', 'createdAt', 'userId'] as const
   $columns = ChannelBanSchema.$columns
   @column()
   declare bannedById: number | null
-  @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime
   @column({ isPrimary: true })
   declare channelId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
   @column()
   declare userId: number
 }
@@ -74,12 +74,12 @@ export class ChannelSchema extends BaseModel {
 }
 
 export class InvitationSchema extends BaseModel {
-  static $columns = ['createdAt', 'channelId', 'id', 'invitedById', 'invitedUserId', 'status'] as const
+  static $columns = ['channelId', 'createdAt', 'id', 'invitedById', 'invitedUserId', 'status'] as const
   $columns = InvitationSchema.$columns
-  @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime
   @column()
   declare channelId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
   @column({ isPrimary: true })
   declare id: number
   @column()
@@ -91,12 +91,12 @@ export class InvitationSchema extends BaseModel {
 }
 
 export class KickVoteSchema extends BaseModel {
-  static $columns = ['createdAt', 'channelId', 'targetUserId', 'voterUserId'] as const
+  static $columns = ['channelId', 'createdAt', 'targetUserId', 'voterUserId'] as const
   $columns = KickVoteSchema.$columns
-  @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime
   @column({ isPrimary: true })
   declare channelId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
   @column()
   declare targetUserId: number
   @column()
@@ -113,12 +113,12 @@ export class MessageMentionSchema extends BaseModel {
 }
 
 export class MessageSchema extends BaseModel {
-  static $columns = ['createdAt', 'channelId', 'id', 'senderId', 'text'] as const
+  static $columns = ['channelId', 'createdAt', 'id', 'senderId', 'text'] as const
   $columns = MessageSchema.$columns
-  @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime
   @column()
   declare channelId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
   @column({ isPrimary: true })
   declare id: number
   @column()

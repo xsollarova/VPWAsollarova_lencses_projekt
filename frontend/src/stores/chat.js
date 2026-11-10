@@ -91,14 +91,14 @@ export const useChatStore = defineStore('chat', () => {
     }
     localStorage.removeItem('token')
     currentUser.value = emptyUser()
+    channels.value = []
+    messages.value = []
+    users.value = {}
+    activeChannelId.value = null
   }
 
-  // hard code ostatni pouzivatelia + ich statusy
-  const users = ref({
-    anna: { id: 2, nickName: 'anna', firstName: 'Anna', lastName: 'Nová', status: 'online' },
-    peter: { id: 3, nickName: 'peter', firstName: 'Peter', lastName: 'Malý', status: 'dnd' },
-    marek: { id: 4, nickName: 'marek', firstName: 'Marek', lastName: 'Kováč', status: 'offline' },
-  })
+  // pouzivatelia
+  const users = ref({})
 
   function getUserId(nickName) {
     if (nickName.toLowerCase() === currentUser.value.nickName.toLowerCase()) {
@@ -121,43 +121,13 @@ export const useChatStore = defineStore('chat', () => {
     return users.value[nickName.toLowerCase()]?.avatarUrl ?? ''
   }
 
-  // kanály - public a private
-  const channels = ref([
-    { id: 1, name: 'general', type: 'public', adminId: 1, invited: false, members: ['david', 'anna', 'peter', 'marek'], bannedMembers: [], kickVotes: [] },
-    { id: 2, name: 'vpwa-team', type: 'private', adminId: 1, invited: false, members: ['david', 'anna'], bannedMembers: [], kickVotes: [] },
-    { id: 3, name: 'memes', type: 'public', adminId: 2, invited: false, members: ['david', 'peter'], bannedMembers: [], kickVotes: [] },
-    { id: 4, name: 'study-group', type: 'private', adminId: 2, invited: true, members: ['anna', 'peter'], bannedMembers: [], kickVotes: [] },
-  ])
+  // kanaly z backendu
+  const channels = ref([])
 
-  // vygenerovanie histórie správ pre infinite scroll
-  function generateHistory(count) {
-    const senders = ['anna', 'peter', 'marek', 'david']
-    const history = []
-    for (let i = 1; i <= count; i++) {
-      const minutes = 8 * 60 + i
-      const time = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
-      history.push({
-        id: 1000 + i,
-        channelId: 1,
-        sender: senders[i % senders.length],
-        text: `Správa č. ${i}`,
-        time,
-      })
-    }
-    return history
-  }
+  // spravy (zatial lokalne, z backendu az v bode 3)
+  const messages = ref([])
 
-  // hard code správy všetkých kanálov v jednom poli
-  const messages = ref([
-    ...generateHistory(60),
-    { id: 1, channelId: 1, sender: 'anna', text: 'Ahoj všetkým!', time: '10:01' },
-    { id: 2, channelId: 1, sender: 'peter', text: 'Čau, @david si tu?', time: '10:02', recipient: 'david'},
-    { id: 3, channelId: 1, sender: 'david', text: 'Som, čo sa deje?', time: '10:03' },
-    { id: 4, channelId: 2, sender: 'anna', text: 'Kedy robíme prototyp?', time: '11:15' },
-    { id: 5, channelId: 3, sender: 'peter', text: 'Pozri toto ', time: '12:40' },
-  ])
-
-  const activeChannelId = ref(1)
+  const activeChannelId = ref(null)
   const listOpen = ref(false)
   const typingUser = ref(null)
   const pendingIncomingMessages = ref([])
@@ -167,9 +137,7 @@ export const useChatStore = defineStore('chat', () => {
   // priorita pozvanok
   const sortedChannels = computed(() => {
     const invited = channels.value.filter((c) => c.invited)
-    const others = channels.value.filter(
-      (c) => !c.invited && c.members.includes(currentUser.value.nickName),
-    )
+    const others = channels.value.filter((c) => !c.invited  )
     return [...invited, ...others]
   })
 
@@ -191,131 +159,129 @@ export const useChatStore = defineStore('chat', () => {
     typingUser.value?.channelId === activeChannelId.value ? typingUser.value : null,
   )
 
-  function selectChannel(id) {
-    const channel = channels.value.find((c) => c.id === id)
-    if (!channel) return
-    if (
-      channel.bannedMembers.some(
-        (member) => member.toLowerCase() === currentUser.value.nickName.toLowerCase(),
-      )
-    ) {
-      return
+  // prevedie kanal z backendu na frontend
+  function mapChannel(channel) {
+    for (const member of channel.members) {
+      users.value[member.nickName.toLowerCase()] = member
     }
-    if (channel.invited && !channel.members.includes(currentUser.value.nickName)) {
-      channel.members.push(currentUser.value.nickName)
-    }
-    channel.invited = false
-    activeChannelId.value = id
-  }
-
-  function createChannel(name, type) {
-    const channelName = name.trim()
-    if (!channelName) return
-
-    const id = Math.max(0, ...channels.value.map((channel) => channel.id)) + 1
-    channels.value.push({
-      id,
-      name: channelName,
-      type,
-      adminId: currentUser.value.id,
-      invited: false,
-      members: [currentUser.value.nickName],
+    return {
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      adminId: channel.adminId,
+      invited: channel.invited,
+      invitationId: channel.invitationId,
+      members: channel.members.map((member) => member.nickName),
       bannedMembers: [],
       kickVotes: [],
-    })
-    activeChannelId.value = id
+    }
   }
 
-  function joinPublicChannel(name) {
-    const channelName = name.trim().toLowerCase()
-    if (!channelName) return 'not-found'
+  function showError(error, fallback) {
+    Notify.create({ type: 'negative', message: apiError(error, fallback) })
+  }
 
-    const channel = channels.value.find(
-      (candidate) => candidate.name.toLowerCase() === channelName,
+  // nacita kanaly prihlaseneho pouzivatela
+  async function loadChannels() {
+    try {
+      const { data } = await api.get('/channels')
+      channels.value = data.data.map(mapChannel)
+    } catch (error) {
+      showError(error, 'Could not load channels')
+      return
+    }
+
+    const stillExists = channels.value.some(
+      (c) => c.id === activeChannelId.value && !c.invited,
     )
-    if (!channel) return 'not-found'
-    if (channel.type !== 'public') return 'private'
-
-    const nickName = currentUser.value.nickName
-    if (
-      channel.bannedMembers.some(
-        (member) => member.toLowerCase() === nickName.toLowerCase(),
-      )
-    ) {
-      return 'banned'
+    if (!stillExists) {
+      activeChannelId.value = channels.value.find((c) => !c.invited)?.id ?? null
     }
-    if (channel.members.includes(nickName)) {
-      activeChannelId.value = channel.id
-      return 'already-member'
-    }
-
-    channel.members.push(nickName)
-    channel.invited = false
-    activeChannelId.value = channel.id
-    return 'joined'
   }
 
-  function leaveChannel(id) {
+  async function selectChannel(id) {
     const channel = channels.value.find((c) => c.id === id)
     if (!channel) return
 
-    channel.members = channel.members.filter(
-      (member) => member !== currentUser.value.nickName,
-    )
-    channel.kickVotes = channel.kickVotes.filter(
-      (vote) => vote.target.toLowerCase() !== currentUser.value.nickName.toLowerCase(),
-    )
-    channel.invited = false
+    // klik na pozvanku = prijatie pozvanky
+    if (channel.invited) {
+      try {
+        await api.post(`/invitations/${channel.invitationId}/accept`)
+      } catch (error) {
+        showError(error, 'Could not accept the invitation')
+        return
+      }
+      activeChannelId.value = id
+      await loadChannels()
+      return
+    }
+    activeChannelId.value = id
+  }
 
-    if (activeChannelId.value === id) {
-      activeChannelId.value = sortedChannels.value[0]?.id ?? null
+  // vrati null pri uspechu, inak text chyby
+  async function createChannel(name, type) {
+    try {
+      const { data } = await api.post('/channels', { name: name.trim(), type })
+      activeChannelId.value = data.data.id
+      await loadChannels()
+      return null
+    } catch (error) {
+      return apiError(error, 'Could not create the channel')
     }
   }
 
-  function deleteChannel(id) {
-    const channel = channels.value.find((candidate) => candidate.id === id)
-    if (!channel) return 'channel-not-found'
-    if (channel.adminId !== currentUser.value.id) return 'not-admin'
-
-    channels.value = channels.value.filter((candidate) => candidate.id !== id)
-    messages.value = messages.value.filter((message) => message.channelId !== id)
-    pendingIncomingMessages.value = pendingIncomingMessages.value.filter(
-      (message) => message.channelId !== id,
-    )
-
-    if (typingUser.value?.channelId === id) {
-      clearInterval(typingInterval)
-      clearTimeout(typingTimeout)
-      typingInterval = null
-      typingTimeout = null
-      typingUser.value = null
+  // vrati null pri uspechu, inak text chyby
+  async function joinPublicChannel(name) {
+    try {
+      const { data } = await api.post('/channels/join', { name: name.trim() })
+      activeChannelId.value = data.data.id
+      await loadChannels()
+      return null
+    } catch (error) {
+      return apiError(error, 'Could not join the channel')
     }
-
-    if (activeChannelId.value === id) {
-      activeChannelId.value = sortedChannels.value[0]?.id ?? null
-    }
-
-    return 'deleted'
   }
 
-  function removeChannelMember(id, member) {
+  // opustenie kanala alebo odmietnutie pozvanky
+  async function leaveChannel(id) {
     const channel = channels.value.find((c) => c.id === id)
-    if (!channel) return 'channel-not-found'
-    if (channel.adminId !== currentUser.value.id) return 'not-admin'
-    if (member.toLowerCase() === currentUser.value.nickName.toLowerCase()) {
-      return 'cannot-remove-self'
+    if (!channel) return
+
+    try {
+      if (channel.invited) {
+        await api.post(`/invitations/${channel.invitationId}/decline`)
+      } else {
+        await api.post(`/channels/${id}/leave`)
+      }
+    } catch (error) {
+      showError(error, 'Could not leave the channel')
+      return
     }
+    await loadChannels()
+  }
 
-    const memberToRemove = channel.members.find(
-      (channelMember) => channelMember.toLowerCase() === member.toLowerCase(),
-    )
-    if (!memberToRemove) return 'member-not-found'
+  async function deleteChannel(id) {
+    try {
+      await api.delete(`/channels/${id}`)
+    } catch (error) {
+      showError(error, 'Could not delete the channel')
+      return
+    }
+    messages.value = messages.value.filter((message) => message.channelId !== id)
+    await loadChannels()
+  }
 
-    channel.members = channel.members.filter((channelMember) => channelMember !== memberToRemove)
-    channel.kickVotes = channel.kickVotes.filter(
-      (vote) => vote.target.toLowerCase() !== memberToRemove.toLowerCase(),
-    )
-    return 'removed'
+  async function removeChannelMember(id, member) {
+    const userId = getUserId(member)
+    if (!userId) return
+
+    try {
+      await api.delete(`/channels/${id}/members/${userId}`)
+    } catch (error) {
+      showError(error, 'Could not remove the member')
+      return
+    }
+    await loadChannels()
   }
 
   function kickChannelMember(id, member) {
@@ -563,6 +529,7 @@ export const useChatStore = defineStore('chat', () => {
     activeChannel,
     activeMessages,
     typingIndicator,
+    loadChannels,
     selectChannel,
     createChannel,
     joinPublicChannel,

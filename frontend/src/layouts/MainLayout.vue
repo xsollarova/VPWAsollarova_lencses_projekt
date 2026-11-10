@@ -212,8 +212,18 @@
               autofocus
               outlined
               label="Channel name"
-              :rules="[(value) => !!value.trim() || 'Enter a channel name']"
+              :rules="channelNameRules"
             />
+
+            <q-banner
+              v-if="createChannelMessage"
+              dense
+              rounded
+              class="bg-red-1"
+            >
+              {{ createChannelMessage }}
+            </q-banner>
+
             <q-option-group
               v-model="newChannelType"
               :options="channelTypeOptions"
@@ -232,7 +242,9 @@
         <q-form @submit.prevent="joinChannel">
           <q-card-section>
             <div class="text-subtitle1">Join a channel</div>
-            <div class="text-caption text-grey-7">You can only join public channels.</div>
+            <div class="text-caption text-grey-7">
+              You can only join public channels. If the channel does not exist, it will be created.
+            </div>
           </q-card-section>
 
           <q-card-section class="q-pt-none">
@@ -240,7 +252,7 @@
               v-model="joinChannelName"
               outlined
               label="Channel name"
-              :rules="[(value) => !!value.trim() || 'Enter a channel name']"
+              :rules="channelNameRules"
             />
             <q-banner
               v-if="joinChannelMessage"
@@ -310,7 +322,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore, STATUS_LABELS } from '@/stores/chat'
 import CommandInput from '@/components/CommandInput.vue'
@@ -335,6 +347,20 @@ const channelToDelete = ref(null)
 const newChannelName = ref('')
 const newChannelType = ref('public')
 const joinChannelName = ref('')
+const createChannelMessage = ref('')
+
+// rovnake pravidla ako na backende
+const channelNameRules = [
+  (value) => !!value.trim() || 'Enter a channel name',
+  (value) => value.trim().length <= 50 || 'Maximum 50 characters',
+  (value) =>
+    /^[a-zA-Z0-9_-]+$/.test(value.trim()) || 'Use only letters, numbers, - and _ (no spaces)',
+]
+
+// po otvoreni chatu nacita kanaly z backendu
+onMounted(() => {
+  chat.loadChannels()
+})
 const joinChannelMessage = ref('')
 const channelTypeOptions = [
   { label: 'Public', value: 'public' },
@@ -385,12 +411,8 @@ function openCreateChannelDialog() {
   newChannelType.value = 'public'
   joinChannelName.value = ''
   joinChannelMessage.value = ''
+  createChannelMessage.value = ''
   createChannelDialogOpen.value = true
-}
-
-function createChannel() {
-  chat.createChannel(newChannelName.value, newChannelType.value)
-  createChannelDialogOpen.value = false
 }
 
 function openDeleteChannelDialog(channel) {
@@ -398,26 +420,29 @@ function openDeleteChannelDialog(channel) {
   deleteChannelDialogOpen.value = true
 }
 
-function confirmDeleteChannel() {
+async function createChannel() {
+  createChannelMessage.value = ''
+  const error = await chat.createChannel(newChannelName.value, newChannelType.value)
+  if (error) {
+    createChannelMessage.value = error
+    return
+  }
+  createChannelDialogOpen.value = false
+}
+
+async function confirmDeleteChannel() {
   if (!channelToDelete.value) return
-  chat.deleteChannel(channelToDelete.value.id)
+  await chat.deleteChannel(channelToDelete.value.id)
   deleteChannelDialogOpen.value = false
   channelToDelete.value = null
 }
-
-function joinChannel() {
-  const result = chat.joinPublicChannel(joinChannelName.value)
-
-  if (result === 'joined' || result === 'already-member') {
-    createChannelDialogOpen.value = false
+async function joinChannel() {
+  joinChannelMessage.value = ''
+  const error = await chat.joinPublicChannel(joinChannelName.value)
+  if (error) {
+    joinChannelMessage.value = error
     return
   }
-
-  joinChannelMessage.value =
-    {
-      private: 'You cannot join a private channel this way.',
-      banned: 'You are permanently banned from this channel.',
-      'not-found': 'No public channel with this name was found.',
-    }[result]
+  createChannelDialogOpen.value = false
 }
 </script>

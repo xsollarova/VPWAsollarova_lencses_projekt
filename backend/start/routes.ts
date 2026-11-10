@@ -33,5 +33,20 @@ router
       .prefix('account')
       .as('profile')
       .use(middleware.auth())
+
+      // kanaly
+    router
+      .group(() => {
+        router.get('channels', [controllers.Channels, 'index'])
+        router.post('channels', [controllers.Channels, 'store'])
+        router.post('channels/join', [controllers.Channels, 'join'])
+        router.post('channels/:id/leave', [controllers.Channels, 'leave'])
+        router.delete('channels/:id', [controllers.Channels, 'destroy'])
+        router.delete('channels/:id/members/:userId', [controllers.Channels, 'removeMember'])
+        router.post('channels/:id/invitations', [controllers.Channels, 'invite'])
+        router.post('invitations/:id/accept', [controllers.Channels, 'acceptInvitation'])
+        router.post('invitations/:id/decline', [controllers.Channels, 'declineInvitation'])
+      })
+      .use(middleware.auth())
   })
   .prefix('/api/v1')
