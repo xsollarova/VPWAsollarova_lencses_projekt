@@ -3,6 +3,7 @@ import { DateTime } from 'luxon'
 import Channel from '#models/channel'
 import Message from '#models/message'
 import { messageHistoryValidator, sendMessageValidator } from '#validators/message'
+import ws from '#services/ws'
 
 // kolko sprav sa posle naraz
 const PAGE_SIZE = 20
@@ -71,6 +72,11 @@ export default class MessagesController {
     await channel.save()
 
     await message.load('sender')
-    return response.created({ data: serializeMessage(message) })
+    const data = serializeMessage(message)
+
+    // real-time poslanie: spravy posleme vsetkym clenom kanala
+    ws.toUsers(await ws.memberIds(channel.id), 'message:new', data)
+
+    return response.created({ data })
   }
 }

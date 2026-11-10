@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { Notify } from 'quasar'
+import { Notify, AppVisibility } from 'quasar'
+import { io } from 'socket.io-client'
 import { api } from '@/boot/axios'
 
 // popisy stavov
@@ -37,6 +38,48 @@ export const useChatStore = defineStore('chat', () => {
       avatarUrl: user.avatarUrl ?? '',
       status: user.status ?? 'online',
       notifyOnlyDirectMessages: Boolean(user.notifyOnlyMentions),
+    }
+    connectSocket()
+  }
+
+  // websocket
+  let socket = null
+
+  // pripojenie po prihlaseni
+  function connectSocket() {
+    if (socket) return
+    socket = io('http://localhost:3333', {
+      auth: { token: localStorage.getItem('token') },
+    })
+    socket.on('message:new', receiveMessage)
+    socket.on('channels:changed', () => loadChannels())
+  }
+
+  function disconnectSocket() {
+    socket?.disconnect()
+    socket = null
+  }
+
+  // nova sprava od servera
+  function receiveMessage(apiMessage) {
+    if (messages.value.some((m) => m.id === apiMessage.id)) return
+
+    const message = mapMessage(apiMessage)
+    const isOwn = apiMessage.senderId === currentUser.value.id
+
+    // ak sme offline => spravy sa dorucia az po prepnuti na online
+    if (!isOwn && currentUser.value.status === 'offline') {
+      pendingIncomingMessages.value.push(message)
+      return
+    }
+
+    messages.value.push(message)
+
+    // notifikacia iba ak sprava nie je v otvorenom kanali alebo je aplikacia na pozadi
+    const channel = channels.value.find((c) => c.id === message.channelId)
+    const isVisible = AppVisibility.appVisible && message.channelId === activeChannelId.value
+    if (!isOwn && !isVisible && channel) {
+      notifyIncomingMessage(message, channel.name)
     }
   }
 
@@ -89,6 +132,8 @@ export const useChatStore = defineStore('chat', () => {
     } catch {
       // backend logout zlyhal
     }
+    // odpojenie socketu
+    disconnectSocket()
     localStorage.removeItem('token')
     currentUser.value = emptyUser()
     channels.value = []
@@ -288,9 +333,12 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function notifyIncomingMessage(message, channelName) {
+    // @sprava iba ked je urcena mne
+    const mentionsMe =
+      message.recipient?.toLowerCase() === currentUser.value.nickName.toLowerCase()
     if (
       currentUser.value.status === 'dnd' ||
-      (currentUser.value.notifyOnlyDirectMessages && !message.recipient)
+      (currentUser.value.notifyOnlyDirectMessages && !mentionsMe)
     ) {
       return
     }
@@ -298,8 +346,8 @@ export const useChatStore = defineStore('chat', () => {
     Notify.create({
       icon: 'chat',
       color: 'info',
-      textColor: message.recipient ? 'white' : 'dark',
-      classes: message.recipient ? 'chat-notification--mentioned' : '',
+      textColor: mentionsMe ? 'white' : 'dark',
+      classes: mentionsMe ? 'chat-notification--mentioned' : '',
       message: `${message.sender}: ${message.text}`,
       caption: `#${channelName}`,
       timeout: 4000,
@@ -395,7 +443,10 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       const { data } = await api.post(`/channels/${channel.id}/messages`, { text })
-      messages.value.push(mapMessage(data.data))
+      //  ak sprava mohla prisla skor cez websocket ako odpoved - aby som nedostal 2x svoju správu
+      if (!messages.value.some((m) => m.id === data.data.id)) {
+        messages.value.push(mapMessage(data.data))
+      }
     } catch (error) {
       systemMessage(apiError(error, 'Message could not be sent'))
     }

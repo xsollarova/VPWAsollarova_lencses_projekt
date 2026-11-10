@@ -9,6 +9,7 @@ import {
   joinChannelValidator,
 } from '#validators/channel'
 import db from '@adonisjs/lucid/services/db'
+import ws from '#services/ws'
 
 // zobrazenie chyby na frontende
 function fail(response: HttpContext['response'], status: number, message: string) {
@@ -34,6 +35,12 @@ function serializeChannel(channel: Channel, invitation?: Invitation) {
     })),
   }
 }
+
+// real-time: pouzivatelia si znova nacitaju zoznam kanalov
+function channelsChanged(userIds: number[]) {
+  ws.toUsers(userIds, 'channels:changed')
+}
+
 // vytvorenie kanalu
 async function createChannel(name: string, type: string, admin: User) {
   const channel = await Channel.create({
@@ -117,6 +124,7 @@ export default class ChannelsController {
       .where('status', 'pending')
       .update({ status: 'accepted' })
     await channel.load('members')
+    channelsChanged(await ws.memberIds(channel.id))
     return { data: serializeChannel(channel) }
   }
 
@@ -128,12 +136,16 @@ export default class ChannelsController {
       return fail(response, 404, 'You are not a member of this channel.')
     }
 
+    const memberIds = await ws.memberIds(channel.id)
+
     if (channel.adminId === user.id) {
       await channel.delete()
+      channelsChanged(memberIds)
       return { data: { deleted: true } }
     }
 
     await channel.related('members').detach([user.id])
+    channelsChanged(memberIds)
     return { data: { deleted: false } }
   }
 
@@ -146,7 +158,9 @@ export default class ChannelsController {
       return fail(response, 403, 'Only the channel admin can delete the channel.')
     }
 
+    const memberIds = await ws.memberIds(channel.id)
     await channel.delete()
+    channelsChanged(memberIds)
     return { data: { deleted: true } }
   }
 
@@ -162,8 +176,10 @@ export default class ChannelsController {
       return fail(response, 400, 'You cannot remove yourself.')
     }
 
+    const memberIds = await ws.memberIds(channel.id)
     await channel.related('members').detach([params.userId])
     await channel.load('members')
+    channelsChanged(memberIds)
     return { data: serializeChannel(channel) }
   }
 
@@ -209,6 +225,7 @@ export default class ChannelsController {
       invitedById: user.id,
       status: 'pending',
     })
+    channelsChanged([target.id])
     return response.created({ data: { invited: target.nickName } })
   }
 
@@ -231,6 +248,7 @@ export default class ChannelsController {
     await invitation.save()
 
     await channel.load('members')
+    channelsChanged(await ws.memberIds(channel.id))
     return { data: serializeChannel(channel) }
   }
 
@@ -277,6 +295,7 @@ export default class ChannelsController {
 
     // trvaly ban: odobrat z clenov, zapisat do channel_bans, zmazat hlasy
     const ban = async (bannedById: number | null) => {
+      const memberIds = await ws.memberIds(channel.id)
       await channel.related('members').detach([target.id])
       await db.table('channel_bans').insert({
         channel_id: channel.id,
@@ -289,6 +308,7 @@ export default class ChannelsController {
         .where('channel_id', channel.id)
         .where('target_user_id', target.id)
         .delete()
+      channelsChanged(memberIds)
     }
 
     if (isAdmin) {
