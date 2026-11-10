@@ -44,6 +44,7 @@ router
         router.delete('channels/:id', [controllers.Channels, 'destroy'])
         router.delete('channels/:id/members/:userId', [controllers.Channels, 'removeMember'])
         router.post('channels/:id/invitations', [controllers.Channels, 'invite'])
+        router.post('channels/:id/kick', [controllers.Channels, 'kick'])
         router.post('invitations/:id/accept', [controllers.Channels, 'acceptInvitation'])
         router.post('invitations/:id/decline', [controllers.Channels, 'declineInvitation'])
         // spravy

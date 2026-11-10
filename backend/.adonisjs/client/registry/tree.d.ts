@@ -26,6 +26,7 @@ export interface ApiDefinition {
     destroy: typeof routes['channels.destroy']
     removeMember: typeof routes['channels.remove_member']
     invite: typeof routes['channels.invite']
+    kick: typeof routes['channels.kick']
     acceptInvitation: typeof routes['channels.accept_invitation']
     declineInvitation: typeof routes['channels.decline_invitation']
   }

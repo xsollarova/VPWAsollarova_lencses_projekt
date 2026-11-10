@@ -15,6 +15,7 @@ export type ScannedRoutes = {
     'channels.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'channels.remove_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
     'channels.invite': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.kick': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'channels.accept_invitation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'channels.decline_invitation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'messages.index': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -38,6 +39,7 @@ export type ScannedRoutes = {
     'channels.join': { paramsTuple?: []; params?: {} }
     'channels.leave': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'channels.invite': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'channels.kick': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'channels.accept_invitation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'channels.decline_invitation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'messages.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

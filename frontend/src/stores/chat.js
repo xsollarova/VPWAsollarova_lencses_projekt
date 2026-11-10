@@ -172,8 +172,6 @@ export const useChatStore = defineStore('chat', () => {
       invited: channel.invited,
       invitationId: channel.invitationId,
       members: channel.members.map((member) => member.nickName),
-      bannedMembers: [],
-      kickVotes: [],
     }
   }
 
@@ -284,60 +282,6 @@ export const useChatStore = defineStore('chat', () => {
     await loadChannels()
   }
 
-  function kickChannelMember(id, member) {
-    const channel = channels.value.find((candidate) => candidate.id === id)
-    if (!channel) return { status: 'channel-not-found' }
-
-    const target = channel.members.find(
-      (channelMember) => channelMember.toLowerCase() === member.toLowerCase(),
-    )
-    if (!target) return { status: 'member-not-found' }
-    if (target.toLowerCase() === currentUser.value.nickName.toLowerCase()) {
-      return { status: 'cannot-kick-self' }
-    }
-
-    if (channel.adminId === currentUser.value.id) {
-      channel.members = channel.members.filter((channelMember) => channelMember !== target)
-      channel.bannedMembers.push(target)
-      channel.kickVotes = channel.kickVotes.filter(
-        (vote) => vote.target.toLowerCase() !== target.toLowerCase(),
-      )
-      return { status: 'permanently-banned' }
-    }
-
-    if (channel.type !== 'public') return { status: 'not-admin' }
-    if (!channel.members.some(
-      (channelMember) =>
-        channelMember.toLowerCase() === currentUser.value.nickName.toLowerCase(),
-    )) {
-      return { status: 'not-member' }
-    }
-
-    let vote = channel.kickVotes.find(
-      (entry) => entry.target.toLowerCase() === target.toLowerCase(),
-    )
-    if (!vote) {
-      vote = { target, voters: [] }
-      channel.kickVotes.push(vote)
-    }
-
-    const nickName = currentUser.value.nickName
-    if (vote.voters.some((voter) => voter.toLowerCase() === nickName.toLowerCase())) {
-      return { status: 'already-voted', votes: vote.voters.length }
-    }
-
-    vote.voters.push(nickName)
-    if (vote.voters.length < 3) {
-      return { status: 'vote-added', votes: vote.voters.length }
-    }
-
-    channel.members = channel.members.filter((channelMember) => channelMember !== target)
-    channel.bannedMembers.push(target)
-    channel.kickVotes = channel.kickVotes.filter(
-      (entry) => entry.target.toLowerCase() !== target.toLowerCase(),
-    )
-    return { status: 'permanently-banned', votes: vote.voters.length }
-  }
 
   function openList() {
     listOpen.value = true
@@ -458,7 +402,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function systemMessage(text) {
-    if (!activeChannel.value) return
+    // bez otvoreneho kanala zobrazime spravu ako notifikaciu
+    if (!activeChannel.value) {
+      Notify.create({ message: text })
+      return
+    }
     messages.value.push({
       id: `local-${nextLocalId++}`,
       channelId: activeChannelId.value,
@@ -468,44 +416,155 @@ export const useChatStore = defineStore('chat', () => {
     })
   }
 
+  // zavola backend pre prikaz; vrati data alebo null (chybu vypise do chatu)
+  async function runCommand(request, fallback) {
+    try {
+      const { data } = await request()
+      return data.data
+    } catch (error) {
+      systemMessage(apiError(error, fallback))
+      return null
+    }
+  }
+
+  // /join nazov [private]
+  async function joinCommand(name, type) {
+    const channel = await runCommand(
+      () => api.post('/channels/join', { name, type }),
+      'Could not join the channel',
+    )
+    if (!channel) return
+    activeChannelId.value = channel.id
+    await loadChannels()
+  }
+
+  // /invite nickName
+  async function inviteCommand(nickName) {
+    const channel = activeChannel.value
+    const result = await runCommand(
+      () => api.post(`/channels/${channel.id}/invitations`, { nickName }),
+      'Could not invite the user',
+    )
+    if (result) systemMessage(`${result.invited} was invited to #${channel.name}.`)
+  }
+
+  // /revoke nickName (iba spravca sukromneho kanala)
+  async function revokeCommand(nickName) {
+    const channel = activeChannel.value
+    if (channel.type !== 'private') {
+      systemMessage('/revoke works only in private channels. Use /kick in public channels.')
+      return
+    }
+    const userId = getUserId(nickName)
+    if (!userId || !channel.members.some((m) => m.toLowerCase() === nickName.toLowerCase())) {
+      systemMessage(`${nickName} is not a member of this channel.`)
+      return
+    }
+    const result = await runCommand(
+      () => api.delete(`/channels/${channel.id}/members/${userId}`),
+      'Could not remove the user',
+    )
+    if (!result) return
+    await loadChannels()
+    systemMessage(`${nickName} was removed from #${channel.name}.`)
+  }
+
+  // /kick nickName
+  async function kickCommand(nickName) {
+    const channel = activeChannel.value
+    const result = await runCommand(
+      () => api.post(`/channels/${channel.id}/kick`, { nickName }),
+      'Could not kick the user',
+    )
+    if (!result) return
+    if (result.status === 'voted') {
+      systemMessage(`Kick vote added for ${result.nickName} (${result.votes}/3).`)
+      return
+    }
+    await loadChannels()
+    systemMessage(`${result.nickName} was permanently banned from #${channel.name}.`)
+  }
+
+  // /quit (spravca zrusi kanal)
+  async function quitCommand() {
+    const channel = activeChannel.value
+    if (channel.adminId !== currentUser.value.id) {
+      systemMessage('Only the channel admin can close the channel.')
+      return
+    }
+    await deleteChannel(channel.id)
+    Notify.create({ message: `Channel #${channel.name} was closed.` })
+  }
+
+  // /cancel (opustenie kanala, ak je spravca, kanal zanika)
+  async function cancelCommand() {
+    const channel = activeChannel.value
+    await leaveChannel(channel.id)
+    Notify.create({
+      message:
+        channel.adminId === currentUser.value.id
+          ? `You left #${channel.name}. As the admin, the channel was closed.`
+          : `You left #${channel.name}.`,
+    })
+  }
+
   function handleInput(raw) {
     const text = raw.trim()
     if (!text) return
-    if (text === '/list') {
-      openList()
+
+    // obycajna sprava
+    if (!text.startsWith('/')) {
+      sendMessage(text)
       return
     }
-    const kickCommand = text.match(/^\/kick(?:\s+(.*))?$/i)
-    if (kickCommand) {
-      const member = kickCommand[1]?.trim()
-      if (!member || /\s/.test(member)) {
-        systemMessage('Usage: /kick nickname')
+
+    // rozdelenie prikazu na nazov a argumenty: "/kick peter" => ['/kick', 'peter']
+    const [command, ...args] = text.split(/\s+/)
+    const name = command.toLowerCase()
+
+    if (name === '/join') {
+      const [channelName, type = 'public'] = args
+      if (!channelName || args.length > 2 || !['public', 'private'].includes(type.toLowerCase())) {
+        systemMessage('Usage: /join channelName [private]')
         return
       }
+      joinCommand(channelName, type.toLowerCase())
+      return
+    }
 
-      const result = kickChannelMember(activeChannelId.value, member)
-      const feedback =
-        result.status === 'vote-added'
-          ? `Kick vote added for ${member} (${result.votes}/3).`
-          : result.status === 'already-voted'
-            ? `You have already voted to kick ${member} (${result.votes}/3).`
-            : {
-                'permanently-banned': `${member} was permanently banned from this channel.`,
-                'channel-not-found': 'There is no active channel.',
-                'not-admin': 'Only the channel admin can kick members in private channels.',
-                'not-member': 'Only channel members can vote to kick someone.',
-                'cannot-kick-self': 'You cannot kick yourself.',
-                'member-not-found': `Member "${member}" was not found in this channel.`,
-              }[result.status]
-      systemMessage(feedback)
+    // ostatne prikazy potrebuju otvoreny kanal
+    if (!activeChannel.value) {
+      systemMessage('Open a channel first.')
       return
     }
-    // osetrenie neznameho prikazu
-    if (text.startsWith('/')) {
-      systemMessage(`Unknown command: ${text.split(' ')[0]}`)
+
+    // prikazy s jednym argumentom nickName
+    const nickCommands = {
+      '/invite': inviteCommand,
+      '/revoke': revokeCommand,
+      '/kick': kickCommand,
+    }
+    if (nickCommands[name]) {
+      if (args.length !== 1) {
+        systemMessage(`Usage: ${name} nickName`)
+        return
+      }
+      nickCommands[name](args[0].replace(/^@/, ''))
       return
     }
-    sendMessage(text)
+
+    // prikazy bez argumentov
+    const simpleCommands = {
+      '/list': openList,
+      '/quit': quitCommand,
+      '/cancel': cancelCommand,
+    }
+    if (simpleCommands[name]) {
+      simpleCommands[name]()
+      return
+    }
+
+    systemMessage(`Unknown command: ${command}`)
   }
 
   return {
@@ -534,7 +593,6 @@ export const useChatStore = defineStore('chat', () => {
     leaveChannel,
     deleteChannel,
     removeChannelMember,
-    kickChannelMember,
     openList,
     isLoggedIn,
     login,

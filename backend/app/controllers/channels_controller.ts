@@ -8,6 +8,7 @@ import {
   inviteValidator,
   joinChannelValidator,
 } from '#validators/channel'
+import db from '@adonisjs/lucid/services/db'
 
 // zobrazenie chyby na frontende
 function fail(response: HttpContext['response'], status: number, message: string) {
@@ -246,5 +247,84 @@ export default class ChannelsController {
     invitation.status = 'declined'
     await invitation.save()
     return { data: { declined: true } }
+  }
+
+  // /kick
+  // spravca: okamzity trvaly ban
+  // clen verejneho kanala: hlas (3 hlasy = trvaly ban)
+  async kick({ auth, params, request, response }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const { nickName } = await request.validateUsing(inviteValidator)
+
+    const channel = await Channel.find(params.id)
+    if (!channel || !(await channel.hasMember(user.id))) {
+      return fail(response, 404, 'You are not a member of this channel.')
+    }
+
+    const target = await User.query().whereRaw('lower(nick_name) = ?', [nickName.toLowerCase()]).first()
+    if (!target || !(await channel.hasMember(target.id))) {
+      return fail(response, 404, `${nickName} is not a member of this channel.`)
+    }
+    if (target.id === user.id) return fail(response, 400, 'You cannot kick yourself.')
+    if (target.id === channel.adminId) {
+      return fail(response, 403, 'You cannot kick the channel admin.')
+    }
+
+    const isAdmin = channel.adminId === user.id
+    if (!isAdmin && channel.type === 'private') {
+      return fail(response, 403, 'Only the channel admin can kick members in a private channel.')
+    }
+
+    // trvaly ban: odobrat z clenov, zapisat do channel_bans, zmazat hlasy
+    const ban = async (bannedById: number | null) => {
+      await channel.related('members').detach([target.id])
+      await db.table('channel_bans').insert({
+        channel_id: channel.id,
+        user_id: target.id,
+        banned_by_id: bannedById,
+        created_at: sqlNow(),
+      })
+      await db
+        .from('kick_votes')
+        .where('channel_id', channel.id)
+        .where('target_user_id', target.id)
+        .delete()
+    }
+
+    if (isAdmin) {
+      await ban(user.id)
+      return { data: { status: 'banned', nickName: target.nickName } }
+    }
+
+    // hlasovanie clenov
+    const alreadyVoted = await db
+      .from('kick_votes')
+      .where('channel_id', channel.id)
+      .where('target_user_id', target.id)
+      .where('voter_user_id', user.id)
+      .first()
+    if (alreadyVoted) {
+      return fail(response, 409, `You have already voted to kick ${target.nickName}.`)
+    }
+
+    await db.table('kick_votes').insert({
+      channel_id: channel.id,
+      target_user_id: target.id,
+      voter_user_id: user.id,
+      created_at: sqlNow(),
+    })
+
+    const result = await db
+      .from('kick_votes')
+      .where('channel_id', channel.id)
+      .where('target_user_id', target.id)
+      .count('* as total')
+    const votes = Number(result[0].total)
+
+    if (votes >= 3) {
+      await ban(null)
+      return { data: { status: 'banned', nickName: target.nickName, votes } }
+    }
+    return { data: { status: 'voted', nickName: target.nickName, votes } }
   }
 }
